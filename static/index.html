@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Science Multi-Agent Solver (Tailwind CSS + FastAPI)</title>
+    <!-- Tailwind CSS CDN with Typography Plugin -->
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <!-- Marked.js for Markdown Formatting -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- KaTeX for Mathematical Equation & Symbol Rendering -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+    <!-- Google Fonts Inter & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/css/custom.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        brand: {
+                            zinc: '#09090b',
+                            card: '#121215',
+                            border: '#27272a',
+                            accent: '#06b6d4',
+                            amber: '#f59e0b',
+                            emerald: '#10b981',
+                            purple: '#a855f7'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="h-screen flex flex-col overflow-hidden select-none">
+
+    <!-- TOP NAVIGATION BAR -->
+    <header class="h-14 border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-md px-5 flex items-center justify-between flex-shrink-0 z-30">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-cyan-500 via-indigo-500 to-amber-500 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+                <i data-lucide="bot" class="w-5 h-5 text-white"></i>
+            </div>
+            <div>
+                <h1 class="text-sm font-bold tracking-tight text-zinc-100 flex items-center gap-2">
+                    Data Science Multi-Agent Solver
+                    <span class="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">Adaptive 3-Tier Multi-Agent Stack</span>
+                </h1>
+            </div>
+        </div>
+
+        <!-- Global Status & Action Buttons -->
+        <div class="flex items-center gap-3">
+            <!-- Active Model Badge -->
+            <div class="flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-zinc-300">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span class="font-medium text-zinc-400">Model:</span>
+                <span id="navSelectedModel" class="font-semibold text-zinc-200">Gemma 4 (31B-IT)</span>
+            </div>
+
+            <!-- Upload File Button -->
+            <button onclick="openUploadModal()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 text-xs font-semibold transition">
+                <i data-lucide="upload" class="w-3.5 h-3.5 text-cyan-400"></i>
+                <span>Upload Dataset / Soal</span>
+            </button>
+
+            <!-- Settings Modal Button -->
+            <button onclick="openSettingsModal()" class="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition" title="Konfigurasi API Key & Model">
+                <i data-lucide="settings" class="w-4 h-4"></i>
+            </button>
+            
+            <!-- Clear History Button -->
+            <button onclick="clearChatHistory()" class="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-red-400 hover:bg-zinc-800 transition" title="Reset Percakapan">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN DUAL-PANE WORKSPACE -->
+    <div class="flex-1 flex overflow-hidden">
+        
+        <!-- ======================================================================= -->
+        <!-- LEFT PANE: MULTI-AGENT CHAT & ACTIVITY TRACKER (45% Width) -->
+        <!-- ======================================================================= -->
+        <aside class="w-[45%] border-r border-zinc-800 flex flex-col bg-zinc-950/40 relative">
+            
+            <!-- 4-Agent Activity Tracker Bar -->
+            <div class="p-3 border-b border-zinc-800/80 bg-zinc-900/30 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <span class="text-xs font-semibold text-zinc-400 flex items-center gap-1">
+                        <i data-lucide="cpu" class="w-3.5 h-3.5 text-cyan-400"></i> Agents:
+                    </span>
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                            👑 Supervisor
+                        </span>
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">
+                            📄 Doc Reader
+                        </span>
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-emerald-500/10 text-emerald-300 border border-emerald-500/30">
+                            📊 Data & Stats
+                        </span>
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-purple-500/10 text-purple-300 border border-purple-500/30">
+                            🤖 ML Specialist
+                        </span>
+                    </div>
+                </div>
+                <div class="text-[11px] font-mono text-zinc-500" id="liveClock">--:--:-- WIB</div>
+            </div>
+
+            <!-- Chat Scroll Area -->
+            <div class="flex-1 overflow-y-auto p-4 space-y-4" id="chatContainer">
+                
+                <!-- Welcome Assistant Greeting -->
+                <div class="flex flex-col items-start space-y-1.5">
+                    <div class="flex items-center gap-2 text-xs text-cyan-400 font-semibold ml-1">
+                        <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+                        AI Multi-Agent System (Enterprise 4-Agent Tier)
+                    </div>
+                    <div class="glass-card rounded-2xl rounded-tl-sm p-4 text-xs text-zinc-200 leading-relaxed max-w-[90%] shadow-lg border border-zinc-800">
+                        <p class="font-semibold text-zinc-100 mb-1">👋 Selamat Datang di Dashboard Data Science Multi-Agent Solver!</p>
+                        <p class="text-zinc-400 mb-2">Sistem ini mengintegrasikan 4 Agen Spesialis:</p>
+                        <ul class="list-disc ml-4 space-y-1 text-zinc-300">
+                            <li><strong class="text-amber-400">👑 Supervisor:</strong> Manajer alur kerja cerdas.</li>
+                            <li><strong class="text-cyan-400">📄 Doc Reader:</strong> Pembaca soal PDF/Word & Multimodal Vision.</li>
+                            <li><strong class="text-emerald-400">📊 Data & Stats:</strong> Pembersihan data, deteksi outlier, & uji hipotesis formal.</li>
+                            <li><strong class="text-purple-400">🤖 ML Specialist:</strong> Pelatihan model prediktif & Confusion Matrix.</li>
+                        </ul>
+                        <p class="mt-2 text-zinc-400">Unggah file dataset atau ketikkan instruksi analisis Anda di bawah.</p>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Staged Clipboard / File Media Bar -->
+            <div id="stagedMediaBar" class="hidden px-4 py-2 border-t border-zinc-800/80 bg-zinc-900/60 backdrop-blur-md"></div>
+
+            <!-- Chat Input Area -->
+            <div class="p-3 border-t border-zinc-800 bg-zinc-950/80 backdrop-blur-md">
+                <div class="relative flex items-center bg-zinc-900 border border-zinc-800 rounded-xl p-1.5 focus-within:border-cyan-500 focus-within:ring-1 focus-within:ring-cyan-500 transition">
+                    
+                    <!-- Media Attachment Button -->
+                    <label for="mediaFileInput" class="p-2 rounded-lg text-zinc-400 hover:text-cyan-400 hover:bg-zinc-800 cursor-pointer transition" title="Lampirkan Gambar/File">
+                        <i data-lucide="paperclip" class="w-4 h-4"></i>
+                        <input type="file" id="mediaFileInput" multiple onchange="handleMediaAttachment(event)" class="hidden" />
+                    </label>
+
+                    <!-- Text Input Field -->
+                    <input 
+                        type="text" 
+                        id="userQueryInput" 
+                        onkeydown="handleEnterKey(event)"
+                        placeholder="Ketik instruksi data science Anda (contoh: 'Latih model prediksi' atau 'Uji hipotesis')..." 
+                        class="flex-1 bg-transparent px-3 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none"
+                    />
+
+                    <!-- Send / Stop Button -->
+                    <button onclick="sendChatMessage()" id="btnSendChat" class="p-1.5 ml-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-zinc-950 font-bold transition shadow-md shadow-cyan-500/20">
+                        <i data-lucide="arrow-up" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                <div class="flex items-center justify-between mt-2 px-1 text-[11px] text-zinc-500">
+                    <span>💡 Mendukung Excel, CSV, Word (.docx), PDF, Gambar (Ctrl+V).</span>
+                    <span>FastAPI + LangGraph Stack</span>
+                </div>
+            </div>
+
+        </aside>
+
+        <!-- ======================================================================= -->
+        <!-- RIGHT PANE: INTERACTIVE DATA SCIENCE WORKSPACE (55% Width) -->
+        <!-- ======================================================================= -->
+        <main class="w-[55%] flex flex-col bg-zinc-950 overflow-hidden">
+            
+            <!-- Workspace Top Bar with 5 Synchronized Tabs -->
+            <div class="h-12 border-b border-zinc-800/80 bg-zinc-900/40 px-4 flex items-center justify-between flex-shrink-0">
+                
+                <!-- 5 Tab Switchers -->
+                <div class="flex items-center gap-1 p-1 bg-zinc-900 rounded-lg border border-zinc-800">
+                    <button onclick="switchTab('tab-data')" id="btn-tab-data" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-zinc-800 text-cyan-400 shadow-sm transition flex items-center gap-1">
+                        <i data-lucide="table" class="w-3.5 h-3.5"></i> 📊 Dataset
+                    </button>
+                    <button onclick="switchTab('tab-chart')" id="btn-tab-chart" class="px-2.5 py-1 text-xs font-semibold rounded-md text-zinc-400 hover:text-zinc-200 transition flex items-center gap-1">
+                        <i data-lucide="bar-chart-3" class="w-3.5 h-3.5"></i> 📈 Charts
+                    </button>
+                    <button onclick="switchTab('tab-ml')" id="btn-tab-ml" class="px-2.5 py-1 text-xs font-semibold rounded-md text-zinc-400 hover:text-purple-300 transition flex items-center gap-1">
+                        <i data-lucide="brain-circuit" class="w-3.5 h-3.5"></i> 🤖 ML Arena
+                    </button>
+                    <button onclick="switchTab('tab-code')" id="btn-tab-code" class="px-2.5 py-1 text-xs font-semibold rounded-md text-zinc-400 hover:text-zinc-200 transition flex items-center gap-1">
+                        <i data-lucide="terminal" class="w-3.5 h-3.5"></i> 💻 Sandbox
+                    </button>
+                    <button onclick="switchTab('tab-report')" id="btn-tab-report" class="px-2.5 py-1 text-xs font-semibold rounded-md text-zinc-400 hover:text-zinc-200 transition flex items-center gap-1">
+                        <i data-lucide="file-text" class="w-3.5 h-3.5"></i> 📑 Report (.docx)
+                    </button>
+                </div>
+
+                <!-- Primary Action Download Buttons -->
+                <div class="flex items-center gap-2">
+                    <button onclick="downloadCleanedData()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-semibold text-xs transition shadow-sm shadow-emerald-500/20">
+                        <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                        <span>Download Cleaned Data</span>
+                    </button>
+                    <button onclick="generateAndDownloadReport()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-zinc-950 font-semibold text-xs transition shadow-sm shadow-cyan-500/20">
+                        <i data-lucide="file-down" class="w-3.5 h-3.5"></i>
+                        <span>Export Word (.docx)</span>
+                    </button>
+                </div>
+
+            </div>
+
+            <!-- Workspace Content Body -->
+            <div class="flex-1 overflow-y-auto p-5 space-y-5">
+
+                <!-- TAB 1: DATASET TABLE VIEW -->
+                <div id="tab-data" class="tab-content space-y-4">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h2 class="text-sm font-bold text-zinc-100 flex items-center gap-2">
+                                <i data-lucide="database" class="w-4 h-4 text-cyan-400"></i>
+                                Live Dataset Explorer & Data Health
+                            </h2>
+                            <p id="tableSubtitle" class="text-xs text-zinc-400">Memuat data aktif...</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <input type="text" id="tableSearchInput" onkeyup="filterLiveTable()" placeholder="Cari dalam tabel..." class="px-2.5 py-1 text-xs bg-zinc-900 border border-zinc-800 rounded-lg text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-cyan-500" />
+                            <span id="tableRowBadge" class="text-xs px-2.5 py-1 rounded bg-zinc-900 border border-zinc-800 text-emerald-400 font-mono font-semibold">0 Rows</span>
+                        </div>
+                    </div>
+
+                    <!-- Smart Auto-ML Advisor Banner (EDA-to-ML Handover) -->
+                    <div id="mlAdvisorCard" class="hidden glass-card rounded-xl p-3.5 border border-purple-500/30 bg-purple-500/5 space-y-1.5 transition">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-purple-300 flex items-center gap-1.5">
+                                <i data-lucide="sparkles" class="w-4 h-4 text-purple-400"></i>
+                                Rekomendasi Machine Learning (Hasil Audit EDA):
+                            </span>
+                            <span id="mlAdvisorBadge" class="text-[11px] font-mono px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40">Auto-ML</span>
+                        </div>
+                        <p class="text-xs text-zinc-300" id="mlAdvisorReason">Menganalisis karakteristik fitur dataset...</p>
+                    </div>
+
+                    <!-- Interactive Data Table Container -->
+                    <div class="border border-zinc-800 rounded-xl overflow-hidden glass-card">
+                        <div class="overflow-x-auto max-h-[380px]" id="tableContainer">
+                            <div class="p-8 text-center text-zinc-500 text-xs">Belum ada dataset yang dimuat. Unggah file CSV atau Excel di menu atas.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 2: INTERACTIVE CHART VIEW (100% SINKRON DENGAN CHAT & AGEN) -->
+                <div id="tab-chart" class="tab-content hidden space-y-4">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h2 class="text-sm font-bold text-zinc-100 flex items-center gap-2">
+                                <i data-lucide="bar-chart-3" class="w-4 h-4 text-cyan-400"></i>
+                                Visualisasi Data Interaktif (Sinkron dengan Chat & Agen)
+                            </h2>
+                            <p class="text-xs text-zinc-400" id="chartTabSubtitle">Grafik yang otomatis dibuat dan dieksekusi oleh Data Analyst berdasarkan instruksi chat.</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span id="chartCountBadge" class="text-xs px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-cyan-400 font-mono font-semibold flex items-center gap-1.5">
+                                <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+                                <span id="chartCountText">0 Grafik Aktif</span>
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Multi-Plot Visual Container -->
+                    <div id="agentPlotsContainer" class="space-y-4">
+                        <div class="glass-card rounded-xl p-8 border border-zinc-800 flex flex-col items-center justify-center min-h-[400px]" id="agentPlotImageWrapper">
+                            <div class="text-center text-zinc-500 text-xs max-w-sm space-y-3">
+                                <div class="w-12 h-12 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mx-auto text-cyan-400 shadow-md">
+                                    <i data-lucide="line-chart" class="w-6 h-6"></i>
+                                </div>
+                                <p class="font-medium text-zinc-300">Belum Ada Grafik Visualisasi Aktif</p>
+                                <p class="text-zinc-500 text-[11px] leading-relaxed">Ketik instruksi di chat seperti: <br><span class="text-cyan-400 font-mono">"buatkan gambar grafik tren lama antrian nya"</span> atau <span class="text-cyan-400 font-mono">"visualisasikan distribusi data"</span>.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 3: MACHINE LEARNING ARENA (MODEL EVALUATOR) [NEW] -->
+                <div id="tab-ml" class="tab-content hidden space-y-4">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h2 class="text-sm font-bold text-zinc-100 flex items-center gap-2">
+                                <i data-lucide="brain-circuit" class="w-4 h-4 text-purple-400"></i>
+                                Machine Learning Model Evaluator & Arena
+                            </h2>
+                            <p class="text-xs text-zinc-400">Metrik performa model prediktif, Confusion Matrix, dan Feature Importance.</p>
+                        </div>
+                        <button onclick="loadMLMetricsView()" class="px-2.5 py-1 rounded bg-zinc-900 border border-zinc-800 text-xs text-purple-400 hover:text-purple-300 transition flex items-center gap-1">
+                            <i data-lucide="refresh-cw" class="w-3 h-3"></i> Segarkan Metrik
+                        </button>
+                    </div>
+
+                    <!-- ML Performance Metric Cards -->
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div class="glass-card rounded-xl p-3.5 border border-zinc-800 space-y-1">
+                            <span class="text-[10px] text-zinc-500 uppercase font-semibold">Model Status</span>
+                            <div class="text-sm font-bold text-emerald-400 font-mono" id="mlModelStatus">Trained & Ready</div>
+                        </div>
+                        <div class="glass-card rounded-xl p-3.5 border border-zinc-800 space-y-1">
+                            <span class="text-[10px] text-zinc-500 uppercase font-semibold">Model Type</span>
+                            <div class="text-sm font-bold text-cyan-400 font-mono" id="mlModelType">Random Forest / Auto-ML</div>
+                        </div>
+                        <div class="glass-card rounded-xl p-3.5 border border-zinc-800 space-y-1">
+                            <span class="text-[10px] text-zinc-500 uppercase font-semibold">Split Validation</span>
+                            <div class="text-sm font-bold text-amber-400 font-mono" id="mlSplitStatus">80% Train / 20% Test</div>
+                        </div>
+                        <div class="glass-card rounded-xl p-3.5 border border-zinc-800 space-y-1">
+                            <span class="text-[10px] text-zinc-500 uppercase font-semibold">Artifacts</span>
+                            <div class="text-sm font-bold text-purple-400 font-mono" id="mlArtifactsCount">Heatmap & Rankings</div>
+                        </div>
+                    </div>
+
+                    <!-- ML Visual Artifacts Display (Confusion Matrix & Feature Importance) -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="mlArtifactsContainer">
+                        <div class="glass-card rounded-xl p-4 border border-zinc-800 space-y-2">
+                            <div class="flex items-center justify-between text-xs font-semibold text-zinc-200 pb-2 border-b border-zinc-800">
+                                <span class="flex items-center gap-1.5 text-cyan-400"><i data-lucide="grid" class="w-4 h-4"></i> Confusion Matrix</span>
+                                <span class="text-[11px] text-zinc-500 font-mono">Heatmap</span>
+                            </div>
+                            <div class="bg-zinc-950/80 rounded-lg p-2 flex items-center justify-center min-h-[260px]" id="cmImageWrapper">
+                                <span class="text-zinc-500 text-xs">Minta agen di chat: "Latih model klasifikasi & buat Confusion Matrix".</span>
+                            </div>
+                        </div>
+
+                        <div class="glass-card rounded-xl p-4 border border-zinc-800 space-y-2">
+                            <div class="flex items-center justify-between text-xs font-semibold text-zinc-200 pb-2 border-b border-zinc-800">
+                                <span class="flex items-center gap-1.5 text-purple-400"><i data-lucide="trending-up" class="w-4 h-4"></i> Feature Importance</span>
+                                <span class="text-[11px] text-zinc-500 font-mono">Ranking</span>
+                            </div>
+                            <div class="bg-zinc-950/80 rounded-lg p-2 flex items-center justify-center min-h-[260px]" id="featImageWrapper">
+                                <span class="text-zinc-500 text-xs">Minta agen di chat: "Tampilkan fitur paling berpengaruh pada model".</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 4: MULTI-AGENT INTERACTIVE SANDBOX WORKSPACE -->
+                <div id="tab-code" class="tab-content hidden space-y-4">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h2 class="text-sm font-bold text-zinc-100 flex items-center gap-2">
+                                <i data-lucide="cpu" class="w-4 h-4 text-amber-400"></i>
+                                Multi-Agent Interactive Sandbox (Pengujian & Eksekusi Per Agen)
+                            </h2>
+                            <p class="text-xs text-zinc-400">Uji, modifikasi, dan jalankan modul internal masing-masing agen secara mandiri.</p>
+                        </div>
+                        <!-- Sub-Tab Switcher for 4 Agents -->
+                        <div class="flex items-center gap-1.5 bg-zinc-950/80 p-1 rounded-lg border border-zinc-800 flex-wrap">
+                            <button onclick="switchSandboxSubTab('coder')" id="btn-sb-coder" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-zinc-800 text-amber-400 shadow-sm transition flex items-center gap-1">
+                                <i data-lucide="terminal" class="w-3.5 h-3.5"></i> 📊 Data & Stats
+                            </button>
+                            <button onclick="switchSandboxSubTab('ml')" id="btn-sb-ml" class="px-2.5 py-1 text-xs font-semibold rounded-md text-zinc-400 hover:text-purple-300 transition flex items-center gap-1">
+                                <i data-lucide="brain-circuit" class="w-3.5 h-3.5"></i> 🤖 ML Specialist
+                            </button>
+                            <button onclick="switchSandboxSubTab('reader')" id="btn-sb-reader" class="px-2.5 py-1 text-xs font-semibold rounded-md text-zinc-400 hover:text-zinc-200 transition flex items-center gap-1">
+                                <i data-lucide="file-search" class="w-3.5 h-3.5"></i> 📄 Doc Reader
+                            </button>
+                            <button onclick="switchSandboxSubTab('supervisor')" id="btn-sb-supervisor" class="px-2.5 py-1 text-xs font-semibold rounded-md text-zinc-400 hover:text-zinc-200 transition flex items-center gap-1">
+                                <i data-lucide="git-branch" class="w-3.5 h-3.5"></i> 👑 Supervisor
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- SUB-PANEL 1: DATA ANALYST & STATS PYTHON CODE RUNNER -->
+                    <div id="sb-panel-coder" class="sandbox-subpanel space-y-3">
+                        <div class="rounded-xl overflow-hidden border border-zinc-800 glass-card">
+                            <div class="bg-zinc-900/90 px-4 py-2 flex items-center justify-between border-b border-zinc-800 text-xs font-mono">
+                                <div class="flex items-center gap-2 text-zinc-300">
+                                    <i data-lucide="code" class="w-3.5 h-3.5 text-amber-400"></i>
+                                    <span>data_stats_sandbox.py</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <button onclick="copySandboxCode()" class="px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs transition flex items-center gap-1">
+                                        <i data-lucide="copy" class="w-3 h-3"></i> Salin Kode
+                                    </button>
+                                    <button onclick="resetSandboxCode()" class="px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs transition flex items-center gap-1">
+                                        <i data-lucide="rotate-ccw" class="w-3 h-3"></i> Reset
+                                    </button>
+                                    <button onclick="runPythonSandboxCode()" id="btnRunSandbox" class="px-3 py-1 rounded bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold text-xs transition flex items-center gap-1 shadow-sm shadow-emerald-500/20">
+                                        <i data-lucide="play" class="w-3.5 h-3.5 fill-current"></i> Jalankan Kode (Run)
+                                    </button>
+                                </div>
+                            </div>
+                            <textarea id="sandboxCodeEditor" rows="8" class="w-full p-4 bg-zinc-950/90 font-mono text-xs text-zinc-200 focus:outline-none focus:ring-1 focus:ring-amber-400 leading-relaxed resize-y border-none" spellcheck="false">import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from scipy import stats
+
+# Sandbox Data & Statistik Inferensial (Dilengkapi proteksi Self-Healing)
+</textarea>
+                        </div>
+
+                        <!-- Live Sandbox Output Terminal -->
+                        <div class="rounded-xl overflow-hidden border border-zinc-800 glass-card">
+                            <div class="bg-zinc-900/90 px-4 py-2 flex items-center justify-between border-b border-zinc-800 text-xs font-mono text-zinc-400">
+                                <span class="flex items-center gap-1.5"><i data-lucide="terminal-square" class="w-3.5 h-3.5 text-cyan-400"></i> Output Terminal & Hasil Eksekusi:</span>
+                                <span id="sandboxStatusBadge" class="text-emerald-400 font-semibold text-[11px]">Siap Eksekusi</span>
+                            </div>
+                            <pre class="p-4 text-xs font-mono text-zinc-300 bg-zinc-950/80 overflow-x-auto max-h-40 leading-relaxed whitespace-pre-wrap" id="sandboxTerminalOutput">Tekan tombol 'Jalankan Kode (Run)' di atas untuk mengeksekusi script secara nyata.</pre>
+                        </div>
+                    </div>
+
+                    <!-- SUB-PANEL 2: MACHINE LEARNING SPECIALIST TRAINER [NEW] -->
+                    <div id="sb-panel-ml" class="sandbox-subpanel hidden space-y-3">
+                        <div class="glass-card rounded-xl p-4 border border-zinc-800 space-y-3">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h3 class="text-xs font-bold text-zinc-200 flex items-center gap-2">
+                                        <i data-lucide="brain-circuit" class="w-4 h-4 text-purple-400"></i>
+                                        Interactive Auto-ML Model Trainer & Evaluator:
+                                    </h3>
+                                    <p class="text-[11px] text-zinc-400 mt-0.5">Konfigurasi algoritma dan latih model prediktif langsung pada dataset aktif.</p>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-zinc-400 mb-1">Pilihan Algoritma:</label>
+                                    <select id="selectMLAlgorithm" class="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-xs text-zinc-200 focus:outline-none focus:border-purple-400 font-medium">
+                                        <optgroup label="── 🎯 Supervised: Klasifikasi ──" class="bg-zinc-950 text-cyan-400 font-semibold">
+                                            <option value="random_forest" class="text-zinc-200">Random Forest Classifier (Ensemble)</option>
+                                            <option value="logistic_regression" class="text-zinc-200">Logistic Regression (Linear)</option>
+                                            <option value="svm_clf" class="text-zinc-200">Support Vector Machine (SVC)</option>
+                                            <option value="decision_tree_clf" class="text-zinc-200">Decision Tree Classifier</option>
+                                            <option value="knn_clf" class="text-zinc-200">k-Nearest Neighbors (k-NN)</option>
+                                        </optgroup>
+                                        <optgroup label="── 📈 Supervised: Regresi ──" class="bg-zinc-950 text-amber-400 font-semibold">
+                                            <option value="linear_regression" class="text-zinc-200">Linear Regression (OLS)</option>
+                                            <option value="ridge_regression" class="text-zinc-200">Ridge Regression (L2)</option>
+                                            <option value="random_forest_reg" class="text-zinc-200">Random Forest Regressor</option>
+                                        </optgroup>
+                                        <optgroup label="── 🔍 Unsupervised Learning ──" class="bg-zinc-950 text-purple-400 font-semibold">
+                                            <option value="kmeans" class="text-zinc-200">K-Means Clustering (K=3)</option>
+                                            <option value="pca" class="text-zinc-200">Principal Component Analysis (PCA 2D)</option>
+                                            <option value="isolation_forest" class="text-zinc-200">Isolation Forest (Deteksi Anomali)</option>
+                                        </optgroup>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-zinc-400 mb-1">Test Split Ratio:</label>
+                                    <select id="selectMLTestSize" class="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-xs text-zinc-200 focus:outline-none focus:border-purple-400">
+                                        <option value="0.2">20% Test / 80% Train (Standar)</option>
+                                        <option value="0.3">30% Test / 70% Train</option>
+                                        <option value="0.1">10% Test / 90% Train</option>
+                                    </select>
+                                </div>
+
+                                <div class="flex items-end">
+                                    <button onclick="trainMLModelSandbox()" id="btnTrainML" class="w-full py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-lg transition flex items-center justify-center gap-1.5 shadow-md shadow-purple-600/20">
+                                        <i data-lucide="play" class="w-3.5 h-3.5 fill-current"></i> Latih & Evaluasi Model
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Live ML Terminal & Evaluation Report -->
+                        <div class="rounded-xl overflow-hidden border border-zinc-800 glass-card">
+                            <div class="bg-zinc-900/90 px-4 py-2 flex items-center justify-between border-b border-zinc-800 text-xs font-mono text-zinc-400">
+                                <span class="flex items-center gap-1.5"><i data-lucide="activity" class="w-3.5 h-3.5 text-purple-400"></i> Hasil Evaluasi Model & Metrik Akurasi:</span>
+                                <span id="mlSandboxStatusBadge" class="text-purple-400 font-semibold text-[11px]">Siap Pelatihan</span>
+                            </div>
+                            <pre class="p-4 text-xs font-mono text-zinc-300 bg-zinc-950/80 overflow-x-auto max-h-52 leading-relaxed whitespace-pre-wrap" id="mlSandboxTerminalOutput">Pilih algoritma di atas dan klik 'Latih & Evaluasi Model' untuk melatih model pada dataset aktif.</pre>
+                        </div>
+                    </div>
+
+                    <!-- SUB-PANEL 2: DOC & VISION READER INSPECTOR -->
+                    <div id="sb-panel-reader" class="sandbox-subpanel hidden space-y-3">
+                        <div class="glass-card rounded-xl p-4 border border-zinc-800 space-y-3">
+                            <div class="flex items-center justify-between">
+                                <label class="text-xs font-bold text-zinc-200 flex items-center gap-2">
+                                    <i data-lucide="file-text" class="w-4 h-4 text-cyan-400"></i>
+                                    Pilih Berkas Dokumen untuk Diinspeksi:
+                                </label>
+                                <button onclick="loadSandboxFilesDropdown()" class="text-xs text-cyan-400 hover:underline flex items-center gap-1">
+                                    <i data-lucide="refresh-cw" class="w-3 h-3"></i> Segarkan Daftar
+                                </button>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <select id="selectSandboxDoc" class="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-xs text-zinc-200 focus:outline-none focus:border-cyan-500 font-mono">
+                                    <option value="">-- Memuat berkas terunggah... --</option>
+                                </select>
+                                <button onclick="inspectSelectedDocument()" id="btnInspectDoc" class="px-3.5 py-2 bg-cyan-500 hover:bg-cyan-400 text-zinc-950 font-bold text-xs rounded-lg transition flex items-center gap-1.5 shadow-sm">
+                                    <i data-lucide="scan" class="w-3.5 h-3.5"></i> Ekstrak Teks & Soal
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Extracted Document Content View -->
+                        <div class="rounded-xl overflow-hidden border border-zinc-800 glass-card">
+                            <div class="bg-zinc-900/90 px-4 py-2 flex items-center justify-between border-b border-zinc-800 text-xs font-mono text-zinc-400">
+                                <span>Hasil Ekstraksi Teks (Doc Reader Agent):</span>
+                                <span id="docInspectTimeBadge" class="text-zinc-500 text-[11px]">--</span>
+                            </div>
+                            <pre class="p-4 text-xs font-mono text-zinc-300 bg-zinc-950/80 overflow-x-auto max-h-72 leading-relaxed whitespace-pre-wrap" id="docExtractedOutput">Pilih dokumen PDF / Word (.docx) di atas dan klik 'Ekstrak Teks & Soal'.</pre>
+                        </div>
+                    </div>
+
+                    <!-- SUB-PANEL 3: SUPERVISOR ROUTING INSPECTOR -->
+                    <div id="sb-panel-supervisor" class="sandbox-subpanel hidden space-y-3">
+                        <div class="glass-card rounded-xl p-4 border border-zinc-800 space-y-3">
+                            <div>
+                                <label class="text-xs font-bold text-zinc-200 flex items-center gap-2">
+                                    <i data-lucide="compass" class="w-4 h-4 text-amber-400"></i>
+                                    Uji Logika Keputusan & Perutean (*Supervisor Routing Test*):
+                                </label>
+                                <p class="text-[11px] text-zinc-400 mt-0.5">Ketik contoh prompt untuk melihat ke agen mana Supervisor mendelegasikan tugas.</p>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <input type="text" id="inputRoutingTestQuery" placeholder="Contoh: Tolong latih model klasifikasi Random Forest dan buat confusion matrix" class="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg p-2 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-amber-400" />
+                                <button onclick="testSupervisorRoutingLogic()" id="btnTestRouting" class="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold text-xs rounded-lg transition flex items-center gap-1.5 shadow-sm">
+                                    <i data-lucide="zap" class="w-3.5 h-3.5"></i> Uji Rute
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Routing Result Box & Visual Workflow Diagram -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div class="glass-card rounded-xl p-4 border border-zinc-800 space-y-2">
+                                <span class="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Hasil Keputusan Supervisor:</span>
+                                <div id="routingResultCard" class="p-3 rounded-lg bg-zinc-950/80 border border-zinc-800 space-y-1.5 text-xs">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-zinc-400">Agen Terpilih:</span>
+                                        <span id="routingSelectedAgent" class="text-cyan-400 font-bold font-mono">Belum Diuji</span>
+                                    </div>
+                                    <div class="text-[11px] text-zinc-300" id="routingReasonText">Masukkan prompt uji di atas lalu klik 'Uji Rute'.</div>
+                                </div>
+                            </div>
+
+                            <div class="glass-card rounded-xl p-4 border border-zinc-800 space-y-2">
+                                <span class="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Topologi 4-Agent LangGraph:</span>
+                                <div class="p-2.5 rounded-lg bg-zinc-950/80 border border-zinc-800 text-[11px] font-mono space-y-1 text-zinc-300">
+                                    <div class="text-amber-400">👑 Supervisor (Orchestrator)</div>
+                                    <div class="pl-4 text-cyan-400">├── 📄 Doc & Vision Reader</div>
+                                    <div class="pl-4 text-emerald-400">├── 📊 Data & Stats Engineer</div>
+                                    <div class="pl-4 text-purple-400">├── 🤖 ML Specialist</div>
+                                    <div class="text-zinc-100">└── 🏁 Lead Synthesizer</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 5: WORD REPORT PREVIEW -->
+                <div id="tab-report" class="tab-content hidden space-y-4">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h2 class="text-sm font-bold text-zinc-100 flex items-center gap-2">
+                                <i data-lucide="file-check" class="w-4 h-4 text-cyan-400"></i>
+                                Academic Report Preview (.docx)
+                            </h2>
+                            <p class="text-xs text-zinc-400">Dokumen laporan tugas siap dikumpulkan ke dosen atau penguji.</p>
+                        </div>
+                        <button onclick="generateAndDownloadReport()" class="px-3 py-1.5 bg-cyan-500 text-zinc-950 font-semibold rounded-lg text-xs flex items-center gap-1.5 shadow-sm">
+                            <i data-lucide="download" class="w-3.5 h-3.5"></i> Download Word (.docx)
+                        </button>
+                    </div>
+
+                    <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-6 text-zinc-200 text-xs space-y-4 shadow-inner max-w-2xl mx-auto">
+                        <div class="text-center border-b border-zinc-800 pb-4">
+                            <h3 class="text-base font-bold text-cyan-400 uppercase">LAPORAN ANALISIS DATA SCIENCE & MULTI-AGENT SOLVER</h3>
+                            <p class="text-zinc-500 text-[11px] mt-1">Dokumen Hasil Eksekusi LangGraph Multi-Agent • Formal Academic Format</p>
+                        </div>
+                        <div class="space-y-2 leading-relaxed">
+                            <p>Laporan ini dihasilkan secara otomatis oleh sistem Multi-Agent yang mencakup:</p>
+                            <ul class="list-disc ml-5 space-y-1 text-zinc-400">
+                                <li>Ekstraksi dan pemahaman dokumen tugas/soal.</li>
+                                <li>Audit data, pembersihan (*cleaning*), dan penanganan *missing values*.</li>
+                                <li>Kalkulasi parameter statistik inferensial & uji hipotesis.</li>
+                                <li>Pemodelan prediktif Machine Learning & evaluasi Confusion Matrix.</li>
+                                <li>Seluruh grafik visualisasi resolusi tinggi yang telah disimpan.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </main>
+
+    </div>
+
+    <!-- ======================================================================= -->
+    <!-- MODALS & OVERLAYS -->
+    <!-- ======================================================================= -->
+
+    <!-- Upload Files Modal -->
+    <div id="uploadModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div class="flex items-center justify-between border-b border-zinc-800 pb-3">
+                <h3 class="text-sm font-bold text-zinc-100 flex items-center gap-2">
+                    <i data-lucide="upload-cloud" class="w-4 h-4 text-cyan-400"></i>
+                    Unggah Dataset atau Dokumen Soal
+                </h3>
+                <button onclick="closeUploadModal()" class="text-zinc-500 hover:text-zinc-300">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            
+            <div class="border-2 border-dashed border-zinc-800 hover:border-cyan-500/50 rounded-xl p-6 text-center cursor-pointer transition bg-zinc-950/40 relative">
+                <input type="file" id="modalFileInput" multiple onchange="uploadFilesToServer(event)" class="absolute inset-0 opacity-0 cursor-pointer" />
+                <i data-lucide="file-up" class="w-10 h-10 text-cyan-400 mx-auto mb-2 animate-bounce"></i>
+                <p class="text-xs font-semibold text-zinc-200">Klik atau seret berkas ke sini</p>
+                <p class="text-[11px] text-zinc-500 mt-1">Mendukung .xlsx, .csv, .docx, .pdf, .png, .jpg</p>
+            </div>
+
+            <div id="uploadStatusBox" class="text-xs p-3 rounded-lg bg-zinc-950 border border-zinc-800 text-zinc-300 hidden"></div>
+            
+            <div class="flex justify-end pt-2">
+                <button onclick="closeUploadModal()" class="px-4 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold rounded-lg text-zinc-300 transition">
+                    Tutup
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- API Key & Model Settings Modal -->
+    <div id="settingsModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div class="flex items-center justify-between border-b border-zinc-800 pb-3">
+                <h3 class="text-sm font-bold text-zinc-100 flex items-center gap-2">
+                    <i data-lucide="sliders" class="w-4 h-4 text-cyan-400"></i>
+                    Pengaturan API Key & Model
+                </h3>
+                <button onclick="closeSettingsModal()" class="text-zinc-500 hover:text-zinc-300">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-semibold text-zinc-300 mb-1">Google Gemini API Key:</label>
+                    <input type="password" id="inputApiKey" placeholder="AIzaSy..." class="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-xs text-zinc-100 focus:outline-none focus:border-cyan-500 font-mono" />
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-zinc-300 mb-1">Pilihan Model AI:</label>
+                    <select id="selectModel" class="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-xs text-zinc-100 focus:outline-none focus:border-cyan-500">
+                        <option value="gemma-4-31b-it">gemma-4-31b-it (Rekomendasi Utama)</option>
+                        <option value="gemma-4-26b-a4b-it">gemma-4-26b-a4b-it (Ringan & Cepat)</option>
+                        <option value="gemini-1.5-flash">gemini-1.5-flash (Ultra Cepat)</option>
+                        <option value="gemini-1.5-pro">gemini-1.5-pro (Reasoning Kompleks)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-3 border-t border-zinc-800">
+                <button onclick="closeSettingsModal()" class="px-4 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold rounded-lg text-zinc-300 transition">
+                    Batal
+                </button>
+                <button onclick="saveSettings()" class="px-4 py-1.5 bg-cyan-500 hover:bg-cyan-400 text-xs font-bold rounded-lg text-zinc-950 transition shadow-sm">
+                    Simpan Konfigurasi
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Reset & Abort Modal -->
+    <div id="confirmResetModal" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 flex-shrink-0">
+                    <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h3 class="text-sm font-bold text-zinc-100">Reset Sesi & Hapus Riwayat?</h3>
+                    <p class="text-[11px] text-zinc-400 mt-0.5">Tindakan ini akan mengosongkan percakapan.</p>
+                </div>
+            </div>
+            
+            <p class="text-xs text-zinc-300 leading-relaxed bg-zinc-950/60 p-3 rounded-xl border border-zinc-800/80">
+                Seluruh riwayat obrolan dan grafik sementara akan dibersihkan. 
+                <span class="text-amber-300 font-semibold block mt-1.5">⚠️ Jika ada proses/request yang sedang berjalan, proses tersebut akan otomatis dihentikan seketika dan direset.</span>
+            </p>
+            
+            <div class="flex justify-end gap-2 pt-2">
+                <button onclick="closeConfirmResetModal()" class="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold rounded-lg text-zinc-300 transition">
+                    Batal
+                </button>
+                <button onclick="executeConfirmedReset()" id="btnConfirmResetAction" class="px-4 py-2 bg-red-600 hover:bg-red-500 text-xs font-bold rounded-lg text-white transition shadow-md shadow-red-600/20 flex items-center gap-1.5">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Ya, Hentikan & Reset
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Banner -->
+    <div id="toast" class="fixed bottom-6 right-6 z-50 transform translate-y-20 opacity-0 transition-all duration-300 bg-zinc-900 border border-zinc-700 text-zinc-100 text-xs px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2">
+        <i data-lucide="info" class="w-4 h-4 text-cyan-400 flex-shrink-0"></i>
+        <span id="toastMsg">Notifikasi</span>
+    </div>
+
+    <!-- Client-Side JavaScript Application Logic -->
+    <script src="/js/app.js"></script>
+</body>
+</html>

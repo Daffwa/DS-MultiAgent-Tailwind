@@ -1,0 +1,32 @@
+# Python byte-compiled / cache files
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+
+# Environment & Secret Configurations (Jangan pernah commit API key)
+.env
+.env.local
+.config.json
+chat_history.json
+
+# Local Uploads & Temporary Directories
+temp_uploads/
+generated_plots/
+
+# PyInstaller Build & Dist Folders
+build/
+dist/
+*.spec
+
+# Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+
+# IDE / OS specific files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
