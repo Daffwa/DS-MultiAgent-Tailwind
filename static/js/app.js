@@ -139,33 +139,126 @@ function closeSettingsModal() {
     m.classList.remove('flex');
 }
 
+function toggleProviderSettings() {
+    const selectProvider = document.getElementById('selectProvider');
+    const provider = selectProvider ? selectProvider.value : 'gemini';
+    const geminiSection = document.getElementById('geminiSettingsSection');
+    const localSection = document.getElementById('localSettingsSection');
+
+    if (provider === 'local') {
+        if (geminiSection) geminiSection.classList.add('hidden');
+        if (localSection) localSection.classList.remove('hidden');
+    } else {
+        if (geminiSection) geminiSection.classList.remove('hidden');
+        if (localSection) localSection.classList.add('hidden');
+    }
+    lucide.createIcons();
+}
+
+async function detectLocalModels() {
+    const statusEl = document.getElementById('localConnectionStatus');
+    const baseUrlInput = document.getElementById('inputLocalBaseUrl');
+    const baseUrl = baseUrlInput ? baseUrlInput.value.trim() : 'http://localhost:11434/v1';
+    if (statusEl) statusEl.innerHTML = '<span class="text-amber-400">⏳ Mengecek server lokal...</span>';
+
+    try {
+        const res = await fetch(`/api/local-models?base_url=${encodeURIComponent(baseUrl)}`);
+        const data = await res.json();
+
+        if (data.status === 'online' && data.models && data.models.length > 0) {
+            statusEl.innerHTML = `<span class="text-emerald-400">✅ Server Online! Ditemukan ${data.models.length} model terpasang.</span>`;
+            
+            const container = document.getElementById('localModelDatalistContainer');
+            if (container) {
+                let selectHtml = `<select onchange="document.getElementById('inputLocalModelName').value=this.value" class="w-full bg-zinc-950 border border-zinc-700 rounded-lg p-2 text-xs text-zinc-200 mt-1 font-mono">`;
+                selectHtml += `<option value="">-- Pilih Model Terdeteksi --</option>`;
+                data.models.forEach(m => {
+                    selectHtml += `<option value="${m}">${m}</option>`;
+                });
+                selectHtml += `</select>`;
+                container.innerHTML = selectHtml;
+            }
+            if (data.models[0] && document.getElementById('inputLocalModelName')) {
+                document.getElementById('inputLocalModelName').value = data.models[0];
+            }
+            showToast(`✅ Terhubung ke Server Local LLM (${data.models.length} model)!`);
+        } else if (data.status === 'online') {
+            statusEl.innerHTML = '<span class="text-emerald-400">✅ Server Online, tetapi belum ada model terpasang.</span>';
+            showToast("Server Local LLM Online!");
+        } else {
+            statusEl.innerHTML = '<span class="text-red-400">❌ Server Offline. Pastikan Ollama / FreeToken / LM Studio aktif di port tersebut.</span>';
+            showToast("⚠️ Server Local LLM tidak terdeteksi.");
+        }
+    } catch (e) {
+        if (statusEl) statusEl.innerHTML = `<span class="text-red-400">❌ Error: ${e.message}</span>`;
+    }
+}
+
+function updateNavModelBadge(provider, geminiModel, localModel) {
+    const badge = document.getElementById('navSelectedModel');
+    if (!badge) return;
+    if (provider === 'local') {
+        badge.innerText = `[Local GPU] ${localModel || 'qwen2.5-coder:7b'}`;
+        badge.className = "font-semibold text-cyan-300 font-mono text-[11px]";
+    } else {
+        badge.innerText = geminiModel || 'gemma-4-31b-it';
+        badge.className = "font-semibold text-zinc-200";
+    }
+}
+
 async function loadSavedConfig() {
     try {
         const res = await fetch('/api/config');
         const data = await res.json();
-        if (data.api_key) document.getElementById('inputApiKey').value = data.api_key;
-        if (data.selected_model) {
-            document.getElementById('selectModel').value = data.selected_model;
-            document.getElementById('navSelectedModel').innerText = data.selected_model;
+        const provider = data.provider || 'gemini';
+        
+        const selectProvider = document.getElementById('selectProvider');
+        if (selectProvider) selectProvider.value = provider;
+
+        if (data.api_key && document.getElementById('inputApiKey')) {
+            document.getElementById('inputApiKey').value = data.api_key;
         }
+        if (data.selected_model && document.getElementById('selectModel')) {
+            document.getElementById('selectModel').value = data.selected_model;
+        }
+        if (data.local_base_url && document.getElementById('inputLocalBaseUrl')) {
+            document.getElementById('inputLocalBaseUrl').value = data.local_base_url;
+        }
+        if (data.local_model_name && document.getElementById('inputLocalModelName')) {
+            document.getElementById('inputLocalModelName').value = data.local_model_name;
+        }
+
+        toggleProviderSettings();
+        updateNavModelBadge(provider, data.selected_model, data.local_model_name);
     } catch (e) {
         console.error("Gagal memuat konfigurasi API:", e);
     }
 }
 
 async function saveSettings() {
-    const apiKey = document.getElementById('inputApiKey').value.trim();
-    const modelName = document.getElementById('selectModel').value;
+    const selectProvider = document.getElementById('selectProvider');
+    const provider = selectProvider ? selectProvider.value : 'gemini';
+    const apiKey = document.getElementById('inputApiKey') ? document.getElementById('inputApiKey').value.trim() : '';
+    const modelName = document.getElementById('selectModel') ? document.getElementById('selectModel').value : 'gemma-4-31b-it';
+    const localBaseUrl = document.getElementById('inputLocalBaseUrl') ? document.getElementById('inputLocalBaseUrl').value.trim() : 'http://localhost:11434/v1';
+    const localModelName = document.getElementById('inputLocalModelName') ? document.getElementById('inputLocalModelName').value.trim() : 'qwen2.5-coder:7b';
 
     try {
         await fetch('/api/config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ api_key: apiKey, selected_model: modelName })
+            body: JSON.stringify({
+                provider: provider,
+                api_key: apiKey,
+                selected_model: modelName,
+                local_base_url: localBaseUrl || 'http://localhost:11434/v1',
+                local_model_name: localModelName || 'qwen2.5-coder:7b',
+                local_api_key: 'ollama'
+            })
         });
-        document.getElementById('navSelectedModel').innerText = modelName;
+        updateNavModelBadge(provider, modelName, localModelName);
         closeSettingsModal();
-        showToast("✅ Konfigurasi API Key & Model berhasil disimpan!");
+        showToast("✅ Konfigurasi Model AI (Cloud/Local) berhasil disimpan!");
     } catch (e) {
         showToast("❌ Gagal menyimpan konfigurasi.");
     }
@@ -477,8 +570,13 @@ async function sendChatMessage() {
     const query = queryInput.value.trim();
     if (!query && stagedMediaFiles.length === 0) return;
 
-    const apiKey = document.getElementById('inputApiKey').value.trim();
-    if (!apiKey) {
+    const selectProvider = document.getElementById('selectProvider');
+    const provider = selectProvider ? selectProvider.value : 'gemini';
+    const apiKey = document.getElementById('inputApiKey') ? document.getElementById('inputApiKey').value.trim() : '';
+    const localBaseUrl = document.getElementById('inputLocalBaseUrl') ? document.getElementById('inputLocalBaseUrl').value.trim() : 'http://localhost:11434/v1';
+    const localModelName = document.getElementById('inputLocalModelName') ? document.getElementById('inputLocalModelName').value.trim() : 'qwen2.5-coder:7b';
+
+    if (provider === 'gemini' && !apiKey) {
         openSettingsModal();
         showToast("⚠️ Silakan masukkan API Key Gemini di pengaturan terlebih dahulu.");
         return;
@@ -564,7 +662,10 @@ async function sendChatMessage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 query: query || "Tolong analisis dataset/dokumen yang dilampirkan.",
+                provider: provider,
                 api_key: apiKey,
+                local_base_url: localBaseUrl,
+                local_model_name: localModelName,
                 attached_media: uploadedMediaPaths
             }),
             signal: currentAbortController.signal
@@ -665,6 +766,7 @@ function appendMessageToChat(role, content, plots = [], exportedFiles = [], atta
 
     if (role === 'user') {
         wrapper.className = "flex flex-col items-end space-y-1.5";
+        const userMsgId = 'user_prompt_' + Math.random().toString(36).substring(2, 9);
 
         let mediaHtml = '';
         if (attachedMedia && attachedMedia.length > 0) {
@@ -682,16 +784,23 @@ function appendMessageToChat(role, content, plots = [], exportedFiles = [], atta
         }
 
         wrapper.innerHTML = `
-            <div class="flex items-center gap-2 text-xs text-zinc-400 mr-1">
+            <div class="flex items-center gap-2 text-xs text-zinc-400 mr-1 select-none">
                 <span class="font-semibold text-zinc-300">User / Mahasiswa</span>
             </div>
-            <div class="max-w-[85%] rounded-2xl rounded-tr-sm bg-zinc-800/90 border border-zinc-700/60 p-3.5 text-sm text-zinc-100 shadow-md">
+            <div class="max-w-[85%] rounded-2xl rounded-tr-sm bg-zinc-800/90 border border-zinc-700/60 p-3.5 shadow-md group">
                 ${mediaHtml}
-                <div>${content}</div>
+                <div id="${userMsgId}" class="selectable-text user-msg-content text-sm text-zinc-100 break-words leading-relaxed whitespace-pre-wrap select-text">${content}</div>
+                <div class="flex items-center justify-end gap-1.5 mt-2.5 pt-2 border-t border-zinc-700/50 select-none">
+                    <button onclick="copyTextToClipboard('${userMsgId}', this)" class="copy-btn inline-flex items-center gap-1.5 text-[11px] text-zinc-400 hover:text-cyan-300 bg-zinc-900/90 hover:bg-zinc-700 border border-zinc-700/70 px-2.5 py-1 rounded-lg transition shadow-sm select-none cursor-pointer" title="Salin Teks Prompt">
+                        <i data-lucide="copy" class="w-3.5 h-3.5 text-cyan-400"></i>
+                        <span class="copy-label font-medium text-[11px]">Salin Prompt</span>
+                    </button>
+                </div>
             </div>
         `;
     } else {
         wrapper.className = "flex flex-col items-start space-y-1.5 w-full";
+        const assistantMsgId = 'assistant_resp_' + Math.random().toString(36).substring(2, 9);
 
         let plotHtml = '';
         if (plots && plots.length > 0) {
@@ -761,18 +870,24 @@ function appendMessageToChat(role, content, plots = [], exportedFiles = [], atta
         }
 
         wrapper.innerHTML = `
-            <div class="flex items-center gap-2 text-xs text-zinc-400 ml-1">
+            <div class="flex items-center gap-2 text-xs text-zinc-400 ml-1 select-none">
                 <span class="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[10px] font-bold">DS</span>
                 <span class="font-semibold text-emerald-400">Data Science Multi-Agent (4 Agents)</span>
                 ${totalDuration ? `<span class="text-[10px] text-zinc-500 font-mono bg-zinc-900 px-2 py-0.5 rounded border border-zinc-800">⏱️ ${totalDuration}s</span>` : ''}
             </div>
             <div class="w-full glass-card rounded-2xl rounded-tl-sm p-4 text-sm text-zinc-200 space-y-3 shadow-lg border-zinc-800">
-                <div class="markdown-body prose prose-invert prose-sm max-w-none leading-relaxed text-zinc-200">
+                <div id="${assistantMsgId}" class="markdown-body prose prose-invert prose-sm max-w-none leading-relaxed text-zinc-200 selectable-text select-text">
                     ${parsedHtml}
                 </div>
                 ${plotHtml}
                 ${downloadHtml}
                 ${logsAccordionHtml}
+                <div class="flex items-center justify-end pt-2 border-t border-zinc-800/60 select-none">
+                    <button onclick="copyTextToClipboard('${assistantMsgId}', this)" class="copy-btn inline-flex items-center gap-1.5 text-[11px] text-zinc-400 hover:text-cyan-300 bg-zinc-900/80 hover:bg-zinc-800 border border-zinc-800 px-2.5 py-1 rounded-lg transition shadow-sm cursor-pointer select-none" title="Salin Seluruh Laporan">
+                        <i data-lucide="copy" class="w-3.5 h-3.5 text-cyan-400"></i>
+                        <span class="copy-label font-medium text-[11px]">Salin Laporan</span>
+                    </button>
+                </div>
             </div>
         `;
     }
@@ -817,6 +932,58 @@ function applyKaTeX(element) {
                 } catch (e) {}
             }
         }, 300);
+    }
+}
+
+// Helper untuk menyalin teks prompt / pesan chat ke Clipboard
+function copyTextToClipboard(elementId, btnElement) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    
+    const text = el.innerText || el.textContent || '';
+    if (!text.trim()) return;
+
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text.trim()).then(() => {
+            handleCopySuccess(btnElement);
+        }).catch(() => {
+            fallbackCopyText(text.trim(), btnElement);
+        });
+    } else {
+        fallbackCopyText(text.trim(), btnElement);
+    }
+}
+
+function fallbackCopyText(text, btnElement) {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-999999px";
+    textArea.style.top = "-999999px";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try {
+        document.execCommand('copy');
+        handleCopySuccess(btnElement);
+    } catch (err) {
+        showToast("❌ Gagal menyalin ke clipboard.");
+    }
+    document.body.removeChild(textArea);
+}
+
+function handleCopySuccess(btnElement) {
+    showToast("📋 Teks prompt berhasil disalin ke Clipboard!");
+    if (btnElement) {
+        const label = btnElement.querySelector('.copy-label');
+        const icon = btnElement.querySelector('i');
+        const originalText = label ? label.innerText : "Salin";
+        if (label) label.innerText = "Tersalin! ✓";
+        btnElement.classList.add('text-emerald-400', 'border-emerald-500/60', 'bg-emerald-950/40');
+        setTimeout(() => {
+            if (label) label.innerText = originalText;
+            btnElement.classList.remove('text-emerald-400', 'border-emerald-500/60', 'bg-emerald-950/40');
+        }, 2000);
     }
 }
 

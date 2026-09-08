@@ -4,8 +4,8 @@ Mengekstrak teks dari dokumen (PDF/Word) serta menganalisis gambar diagram dan v
 
 import os
 import time
+from typing import Any, Dict, List
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
 from tools.doc_tools import read_pdf, read_word, resolve_file
 from tools.media_tools import build_multimodal_content_blocks
 from utils.formatters import clean_and_format_output
@@ -20,7 +20,7 @@ Tugas Anda:
 4. ATURAN ANTI-LOOPING: Dilarang mengulang kata atau frasa yang sama secara berulang kali. Berikan rangkuman yang jelas, padat, dan terstruktur.
 """
 
-def create_doc_reader_node(llm: ChatGoogleGenerativeAI):
+def create_doc_reader_node(llm: Any):
     """Factory untuk membuat node Document & Multimodal Reader yang cepat dan adaptif."""
 
     def doc_reader_node(state: AgentState) -> dict:

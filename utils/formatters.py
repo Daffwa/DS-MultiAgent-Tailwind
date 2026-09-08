@@ -96,10 +96,10 @@ def clean_and_format_output(raw_content: Any) -> str:
 
 
 def extract_python_code(text: str) -> str:
-    """Mengekstrak blok kode Python pertama dari teks respon LLM."""
+    """Mengekstrak seluruh blok kode Python dari teks respon LLM dan menggabungkannya secara runtut."""
     if not text:
         return ""
-    code_match = re.search(r"```(?:python)?\s*(.*?)\s*```", text, re.DOTALL)
-    if code_match:
-        return code_match.group(1).strip()
+    matches = re.findall(r"```(?:python)?\s*(.*?)\s*```", text, re.DOTALL)
+    if matches:
+        return "\n\n# --- Kode Eksekusi Multi-Agent ---\n".join(m.strip() for m in matches if m.strip())
     return ""

@@ -11,6 +11,8 @@ import shutil
 import time
 import asyncio
 from typing import List, Optional
+import matplotlib
+matplotlib.use('Agg')
 import pandas as pd
 import numpy as np
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
@@ -76,12 +78,20 @@ class ChatRequest(BaseModel):
     query: str
     api_key: Optional[str] = None
     model_name: Optional[str] = None
+    provider: Optional[str] = None
+    local_base_url: Optional[str] = None
+    local_model_name: Optional[str] = None
+    local_api_key: Optional[str] = None
     attached_media: Optional[List[str]] = []
 
 
 class ConfigRequest(BaseModel):
-    api_key: str
-    selected_model: str
+    api_key: Optional[str] = ""
+    selected_model: Optional[str] = "gemma-4-31b-it"
+    provider: Optional[str] = "gemini"
+    local_base_url: Optional[str] = "http://localhost:11434/v1"
+    local_model_name: Optional[str] = "qwen2.5-coder:7b"
+    local_api_key: Optional[str] = "ollama"
 
 
 class PythonSandboxRequest(BaseModel):
@@ -109,15 +119,67 @@ class MLSandboxTrainRequest(BaseModel):
 def get_configuration():
     cfg = load_config()
     return {
+        "provider": cfg.get("provider", "gemini"),
         "api_key": cfg.get("api_key", ""),
-        "selected_model": cfg.get("selected_model", "gemma-4-31b-it")
+        "selected_model": cfg.get("selected_model", "gemma-4-31b-it"),
+        "local_base_url": cfg.get("local_base_url", "http://localhost:11434/v1"),
+        "local_model_name": cfg.get("local_model_name", "qwen2.5-coder:7b"),
+        "local_api_key": cfg.get("local_api_key", "ollama")
     }
 
 
 @app.post("/api/config")
 def update_configuration(req: ConfigRequest):
-    save_config(req.api_key, req.selected_model)
+    save_config(
+        api_key=req.api_key or "",
+        selected_model=req.selected_model or "gemma-4-31b-it",
+        provider=req.provider or "gemini",
+        local_base_url=req.local_base_url or "http://localhost:11434/v1",
+        local_model_name=req.local_model_name or "qwen2.5-coder:7b",
+        local_api_key=req.local_api_key or "ollama"
+    )
     return {"status": "success", "message": "Konfigurasi berhasil disimpan."}
+
+
+@app.get("/api/local-models")
+def get_local_models(base_url: Optional[str] = None):
+    """Mengecek ketersediaan server Local LLM (Ollama / FreeToken / LM Studio) dan mengambil daftar model."""
+    import urllib.request
+    cfg = load_config()
+    target_url = (base_url or cfg.get("local_base_url", "http://localhost:11434/v1")).strip()
+    clean_url = target_url.rstrip("/")
+    models = []
+    status = "offline"
+
+    # 1. Cek endpoint standar OpenAI /v1/models
+    try:
+        models_endpoint = clean_url if clean_url.endswith("/v1") else f"{clean_url}/v1"
+        req = urllib.request.Request(f"{models_endpoint}/models", headers={"User-Agent": "DataScience-MultiAgent/3.0"})
+        with urllib.request.urlopen(req, timeout=2.5) as resp:
+            if resp.status == 200:
+                data = json.loads(resp.read().decode())
+                if "data" in data and isinstance(data["data"], list):
+                    models = [m.get("id") for m in data["data"] if m.get("id")]
+                status = "online"
+    except Exception:
+        # 2. Cek endpoint bawaan Ollama /api/tags jika /v1/models gagal
+        try:
+            ollama_host = clean_url.replace("/v1", "")
+            req = urllib.request.Request(f"{ollama_host}/api/tags", headers={"User-Agent": "DataScience-MultiAgent/3.0"})
+            with urllib.request.urlopen(req, timeout=2.5) as resp:
+                if resp.status == 200:
+                    data = json.loads(resp.read().decode())
+                    if "models" in data and isinstance(data["models"], list):
+                        models = [m.get("name") for m in data["models"] if m.get("name")]
+                    status = "online"
+        except Exception:
+            status = "offline"
+
+    return {
+        "status": status,
+        "base_url": target_url,
+        "models": models
+    }
 
 
 @app.get("/api/history")
@@ -690,11 +752,18 @@ def test_supervisor_routing(req: RoutingTestRequest):
 async def handle_chat_stream(req: ChatRequest):
     """Menjalankan alur 4 Agen Spesialis dengan streaming event status real-time (SSE)."""
     cfg = load_config()
-    api_key = req.api_key or cfg.get("api_key", "")
-    model_name = req.model_name or cfg.get("selected_model", "gemma-4-31b-it")
+    provider = (req.provider or cfg.get("provider", "gemini")).lower()
 
-    if not api_key:
-        raise HTTPException(status_code=400, detail="API Key Google Gemini belum diatur.")
+    if provider == "gemini":
+        api_key = req.api_key or cfg.get("api_key", "")
+        model_name = req.model_name or cfg.get("selected_model", "gemma-4-31b-it")
+        base_url = None
+        if not api_key:
+            raise HTTPException(status_code=400, detail="API Key Google Gemini belum diatur.")
+    else:
+        api_key = req.local_api_key or cfg.get("local_api_key", "ollama")
+        model_name = req.local_model_name or req.model_name or cfg.get("local_model_name", "qwen2.5-coder:7b")
+        base_url = req.local_base_url or cfg.get("local_base_url", "http://localhost:11434/v1")
 
     uploaded_files_map = {}
     for f in glob.glob(os.path.join(TEMP_UPLOAD_DIR, "*")):
@@ -709,7 +778,12 @@ async def handle_chat_stream(req: ChatRequest):
     history.append(user_entry)
 
     try:
-        agent_graph = build_multiagent_graph(gemini_api_key=api_key, model_name=model_name)
+        agent_graph = build_multiagent_graph(
+            gemini_api_key=api_key,
+            model_name=model_name,
+            provider=provider,
+            base_url=base_url
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Gagal menginisialisasi LangGraph: {str(e)}")
 

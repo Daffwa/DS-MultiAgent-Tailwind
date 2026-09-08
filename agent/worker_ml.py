@@ -9,8 +9,8 @@ Spesialis Full-Stack Auto-ML untuk:
 
 import os
 import time
+from typing import Any, Dict, List
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
 from tools.data_tools import inspect_tabular_data, execute_python_code, resolve_file
 from utils.formatters import clean_and_format_output, extract_python_code
 from agent.state import AgentState
@@ -55,7 +55,7 @@ TUGAS & STANDAR PIPELINE PYTHON:
 4. ATURAN ANTI-LOOPING: Dilarang keras membuat garis pembatas komentar berulang seperti '/////' atau '====='. Langsung tulis kode dan jelaskan kesimpulan akademisnya.
 """
 
-def create_ml_specialist_node(llm: ChatGoogleGenerativeAI):
+def create_ml_specialist_node(llm: Any):
     """Factory untuk membuat node Machine Learning Specialist dengan dukungan Supervised & Unsupervised mutakhir."""
 
     def ml_specialist_node(state: AgentState) -> dict:
@@ -249,7 +249,7 @@ if len(numeric_df.columns) >= 2:
     is_imbalanced = (class_counts.min() < 0.20)
     cw = 'balanced' if is_imbalanced else None
     
-    model = RandomForestClassifier(n_estimators=100, class_weight=cw, random_state=42)
+    model = RandomForestClassifier(n_estimators=100, class_weight=cw, random_state=42, n_jobs=-1)
     model.fit(X_train, y_train)
     y_pred = model.predict(X_test)
     

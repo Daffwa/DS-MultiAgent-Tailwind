@@ -8,7 +8,6 @@ Mengimplementasikan Adaptive Hybrid Multi-Agent Orchestration:
 import time
 from typing import Dict, Any, List
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
 from agent.state import AgentState
 
 SUPERVISOR_SYSTEM_PROMPT = """Anda adalah 'Supervisor Agent' (Project Manager) dalam Tim Data Science Multi-Agent.
@@ -64,8 +63,10 @@ def detect_user_intents(query: str, has_docs: bool, has_tabular: bool, attached_
     if wants_all:
         wants_data = True
         wants_ml = True
-        if has_docs:
+        if attached_media or (has_docs and any(k in q for k in ["baca", "dokumen", "pdf", "word", "soal", "tugas", "lampiran"])):
             wants_doc = True
+        else:
+            wants_doc = False
             
     return {
         "greeting": is_greeting,
@@ -76,7 +77,7 @@ def detect_user_intents(query: str, has_docs: bool, has_tabular: bool, attached_
     }
 
 
-def create_supervisor_node(llm: ChatGoogleGenerativeAI):
+def create_supervisor_node(llm: Any):
     """Factory untuk membuat supervisor router yang deterministik, adaptif, dan anti-hanging."""
 
     def supervisor_node(state: AgentState) -> dict:

@@ -5,8 +5,8 @@ analisis statistik deskriptif, dan pengujian hipotesis inferensial formal (t-tes
 
 import os
 import time
+from typing import Any, Dict, List
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
 from tools.data_tools import inspect_tabular_data, execute_python_code, resolve_file
 from utils.formatters import clean_and_format_output, extract_python_code
 from agent.state import AgentState
@@ -33,7 +33,7 @@ ATURAN UTAMA EKSEKUSI:
 5. ATURAN ANTI-LOOPING: Dilarang keras membuat garis pembatas komentar berulang seperti '/////' atau '====='. Langsung tulis kode Python di dalam blok kode.
 """
 
-def create_data_analyst_node(llm: ChatGoogleGenerativeAI):
+def create_data_analyst_node(llm: Any):
     """Factory untuk membuat node Data & Statistical Engineer yang tangguh dan modular."""
 
     def data_analyst_node(state: AgentState) -> dict:

@@ -12,6 +12,8 @@ import traceback
 import re
 import pandas as pd
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
 import plotly.express as px
@@ -57,6 +59,17 @@ try:
 except ImportError:
     scipy = None
 
+# Pustaka High-Performance Data Processing (Big Data & Streaming)
+try:
+    import polars as pl
+except ImportError:
+    pl = None
+
+try:
+    import duckdb
+except ImportError:
+    duckdb = None
+
 
 def resolve_file(file_path: str) -> str:
     """Mencari lokasi file yang valid di direktori lokal atau temp_uploads."""
@@ -85,29 +98,53 @@ os.makedirs(TEMP_UPLOAD_DIR, exist_ok=True)
 
 @tool
 def inspect_tabular_data(file_path: str, sheet_name: str = None) -> str:
-    """Membaca dan memeriksa struktur file dataset tabular (CSV atau Excel .xlsx).
+    """Membaca dan memeriksa struktur file dataset tabular (CSV, Excel .xlsx, atau Parquet).
     Mengembalikan ringkasan dimensi baris x kolom, tipe data, missing values, statistik, dan 5 baris pertama.
+    Mendukung Smart Lazy Scanning untuk file besar (>50MB).
     """
     real_path = resolve_file(file_path)
     if not os.path.exists(real_path):
         return f"Error: Berkas '{file_path}' tidak ditemukan."
 
+    file_size_mb = os.path.getsize(real_path) / (1024 * 1024)
+    is_large_file = file_size_mb > 50.0
+
     try:
+        sheet_info = ""
+        large_file_note = ""
+
         if real_path.lower().endswith('.csv'):
-            df = pd.read_csv(real_path)
-            sheet_info = ""
+            if is_large_file:
+                # Mode Cepat & Hemat Memori untuk File Besar
+                large_file_note = f"⚠️ [Big Data Mode]: Ukuran file {file_size_mb:.1f} MB (>50MB). Menampilkan profil ringkas 100 baris pertama untuk efisiensi RAM.\n\n"
+                df = pd.read_csv(real_path, nrows=100)
+                dim_str = f"Dimensi File: {file_size_mb:.1f} MB (Dataset Besar - Disarankan Polars/Streaming Pipeline)"
+            else:
+                df = pd.read_csv(real_path)
+                dim_str = f"Dimensi Dataset: {df.shape[0]} baris x {df.shape[1]} kolom"
+
+        elif real_path.lower().endswith('.parquet'):
+            if pl is not None:
+                p_df = pl.read_parquet(real_path, n_rows=100 if is_large_file else None)
+                df = p_df.to_pandas()
+            else:
+                df = pd.read_parquet(real_path)
+            dim_str = f"Dimensi Dataset (Parquet): {df.shape[0]} baris x {df.shape[1]} kolom"
+
         elif real_path.lower().endswith(('.xlsx', '.xls')):
             excel_file = pd.ExcelFile(real_path)
             sheet_names = excel_file.sheet_names
             target_sheet = sheet_name if sheet_name in sheet_names else sheet_names[0]
-            df = pd.read_excel(real_path, sheet_name=target_sheet)
+            df = pd.read_excel(real_path, sheet_name=target_sheet, nrows=100 if is_large_file else None)
             sheet_info = f"Daftar Sheet: {sheet_names}\nSheet aktif: '{target_sheet}'\n\n"
+            dim_str = f"Dimensi Dataset: {df.shape[0]} baris x {df.shape[1]} kolom"
+
         else:
-            return f"Format berkas tidak didukung: '{file_path}'. Gunakan CSV atau Excel (.xlsx)."
+            return f"Format berkas tidak didukung: '{file_path}'. Gunakan CSV, Excel (.xlsx), atau Parquet (.parquet)."
 
         summary = [
-            sheet_info,
-            f"Dimensi Dataset: {df.shape[0]} baris x {df.shape[1]} kolom",
+            sheet_info + large_file_note,
+            dim_str,
             "\n--- Struktur Kolom & Missing Values ---",
             pd.DataFrame({
                 "Kolom": df.columns,
@@ -185,10 +222,42 @@ def execute_python_code(code: str) -> str:
         cleaned_code = cleaned_code[:-3]
     cleaned_code = cleaned_code.strip()
 
+    # Enforce Agg headless backend to permanently eliminate Windows GUI popups
+    try:
+        import matplotlib
+        matplotlib.use('Agg', force=True)
+        import matplotlib.pyplot as plt
+        plt.switch_backend('Agg')
+    except Exception:
+        pass
+
     plots_before = set(glob.glob(os.path.join(OUTPUT_PLOT_DIR, "*")))
     files_before = set(glob.glob(os.path.join(OUTPUT_FILES_DIR, "*")))
 
-    # Environment Eksekusi Terisolasi & Terbuka untuk Seluruh Pustaka ML
+    # Hook custom plt.show agar setiap kali LLM menulis plt.show(), gambar otomatis disimpan ke disk tanpa popup
+    def smart_plt_show(*args, **kwargs):
+        if plt.get_fignums():
+            plot_name = f"plot_{int(time.time() * 1000)}.png"
+            auto_plot_path = os.path.join(OUTPUT_PLOT_DIR, plot_name)
+            try:
+                plt.savefig(auto_plot_path, dpi=200, bbox_inches='tight')
+                plt.close('all')
+                print(f"[Visualisasi Grafik Disimpan]: {plot_name}")
+            except Exception:
+                pass
+
+    try:
+        import matplotlib.pyplot as plt
+        matplotlib.pyplot.show = smart_plt_show
+        plt.show = smart_plt_show
+    except Exception:
+        pass
+
+    # Prepend headless backend setup directly to the executed code
+    headless_prefix = "import matplotlib\nmatplotlib.use('Agg', force=True)\nimport matplotlib.pyplot as plt\nplt.switch_backend('Agg')\n\n"
+    cleaned_code = headless_prefix + cleaned_code
+
+    # Environment Eksekusi Terisolasi & Terbuka untuk Seluruh Pustaka ML & Big Data
     exec_globals = {
         "pd": pd,
         "np": np,
@@ -199,11 +268,27 @@ def execute_python_code(code: str) -> str:
         "sklearn": sklearn,
         "scipy": scipy,
         "stats": stats if scipy else None,
+        "pl": pl,
+        "duckdb": duckdb,
         "OUTPUT_PLOT_DIR": OUTPUT_PLOT_DIR,
         "OUTPUT_FILES_DIR": OUTPUT_FILES_DIR,
         "TEMP_UPLOAD_DIR": TEMP_UPLOAD_DIR,
         "resolve_file": resolve_file
     }
+
+    # Auto-preload active dataset DataFrame jika tersedia agar kode tidak error 'df is not defined'
+    tabular_files = glob.glob(os.path.join(TEMP_UPLOAD_DIR, "*.csv")) + glob.glob(os.path.join(TEMP_UPLOAD_DIR, "*.xlsx"))
+    if not tabular_files:
+        tabular_files = glob.glob(r"D:\Capstone\Dataset\*.csv") + glob.glob(r"D:\Capstone\Dataset\*.xlsx")
+    if tabular_files:
+        try:
+            target_f = tabular_files[0]
+            if target_f.lower().endswith(".csv"):
+                exec_globals["df"] = pd.read_csv(target_f)
+            else:
+                exec_globals["df"] = pd.read_excel(target_f)
+        except Exception:
+            pass
 
     if sklearn:
         exec_globals.update({

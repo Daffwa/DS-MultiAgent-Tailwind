@@ -6,12 +6,12 @@ Mendukung 3-Tier Adaptive Hybrid Orchestration:
 - Tier 3: Coordinated Multi-Stage Forward DAG (Anti-Looping)
 """
 
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import StateGraph, END
 
 from agent.state import AgentState
+from agent.llm_factory import get_llm
 from agent.supervisor import create_supervisor_node
 from agent.worker_reader import create_doc_reader_node
 from agent.worker_coder import create_data_analyst_node
@@ -29,7 +29,7 @@ TUGAS ANDA:
 """
 
 
-def create_final_writer_node(llm: ChatGoogleGenerativeAI):
+def create_final_writer_node(llm: Any):
     """Factory untuk membuat node perangkum laporan akhir."""
 
     def final_writer_node(state: AgentState) -> dict:
@@ -110,13 +110,20 @@ def route_after_data_analyst(state: AgentState) -> str:
     return "final_writer"
 
 
-def build_multiagent_graph(gemini_api_key: str, model_name: str = "gemma-4-31b-it"):
+def build_multiagent_graph(
+    gemini_api_key: str = "",
+    model_name: str = "gemma-4-31b-it",
+    provider: str = "gemini",
+    base_url: Optional[str] = None
+):
     """Membangun dan mengompilasi graf StateGraph Multi-Agent dengan LangGraph (Forward DAG)."""
 
-    # Inisialisasi LLM dengan parameter anti-looping & deterministik tinggi
-    llm = ChatGoogleGenerativeAI(
-        model=model_name,
-        google_api_key=gemini_api_key,
+    # Inisialisasi LLM melalui Universal Factory
+    llm = get_llm(
+        provider=provider,
+        model_name=model_name,
+        api_key=gemini_api_key,
+        base_url=base_url,
         temperature=0.3,
         top_p=0.95,
         max_output_tokens=3000

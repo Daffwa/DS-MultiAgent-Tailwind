@@ -19,10 +19,14 @@ os.makedirs(TEMP_UPLOAD_DIR, exist_ok=True)
 
 
 def load_config() -> Dict[str, Any]:
-    """Memuat konfigurasi tersimpan (API Key & Pilihan Model) dari disk."""
+    """Memuat konfigurasi tersimpan (Provider, API Key, Local LLM & Pilihan Model) dari disk."""
     default_config = {
+        "provider": "gemini",
         "api_key": os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "",
-        "selected_model": "gemma-4-31b-it"
+        "selected_model": "gemma-4-31b-it",
+        "local_base_url": os.getenv("LOCAL_LLM_BASE_URL") or "http://localhost:11434/v1",
+        "local_model_name": os.getenv("LOCAL_LLM_MODEL") or "qwen2.5-coder:7b",
+        "local_api_key": os.getenv("LOCAL_LLM_API_KEY") or "ollama"
     }
     
     if os.path.exists(CONFIG_FILE):
@@ -36,11 +40,22 @@ def load_config() -> Dict[str, Any]:
     return default_config
 
 
-def save_config(api_key: str, selected_model: str) -> None:
-    """Menyimpan API Key dan pilihan model ke file .config.json agar tetap ada saat di-refresh."""
+def save_config(
+    api_key: str,
+    selected_model: str,
+    provider: str = "gemini",
+    local_base_url: str = "http://localhost:11434/v1",
+    local_model_name: str = "qwen2.5-coder:7b",
+    local_api_key: str = "ollama"
+) -> None:
+    """Menyimpan seluruh konfigurasi (Cloud & Local) ke file .config.json."""
     data = {
+        "provider": provider,
         "api_key": api_key,
-        "selected_model": selected_model
+        "selected_model": selected_model,
+        "local_base_url": local_base_url,
+        "local_model_name": local_model_name,
+        "local_api_key": local_api_key
     }
     try:
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
