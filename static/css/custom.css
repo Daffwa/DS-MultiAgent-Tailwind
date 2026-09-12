@@ -155,3 +155,116 @@ body {
 .copy-btn:active {
     transform: translateY(0);
 }
+
+/* =========================================================================
+   Code Block Container with Header & Copy Button
+   ========================================================================= */
+.code-block-wrapper {
+    position: relative;
+    margin: 0.85rem 0;
+    border-radius: 0.75rem;
+    overflow: hidden;
+    border: 1px solid rgba(63, 63, 70, 0.6);
+    background-color: #09090b;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.code-block-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.45rem 0.85rem;
+    background-color: rgba(24, 24, 27, 0.9);
+    border-bottom: 1px solid rgba(63, 63, 70, 0.5);
+    font-size: 0.75rem;
+    user-select: none;
+}
+
+.code-block-lang {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #38bdf8;
+    letter-spacing: 0.05em;
+}
+
+.code-copy-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.2rem 0.6rem;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: #a1a1aa;
+    background-color: rgba(39, 39, 42, 0.6);
+    border: 1px solid rgba(63, 63, 70, 0.5);
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.code-copy-btn:hover {
+    color: #38bdf8;
+    background-color: rgba(39, 39, 42, 0.95);
+    border-color: rgba(56, 189, 248, 0.4);
+}
+
+.code-copy-btn.copied {
+    color: #34d399;
+    border-color: rgba(52, 211, 153, 0.6);
+    background-color: rgba(16, 185, 129, 0.15);
+}
+
+.code-block-wrapper pre {
+    margin: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 0.85rem 1rem !important;
+}
+
+/* =========================================================================
+   Interactive Plot Card in Chat (Click-to-Enlarge)
+   ========================================================================= */
+.chat-plot-card {
+    cursor: zoom-in;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.chat-plot-card:hover {
+    border-color: rgba(6, 182, 212, 0.5);
+    box-shadow: 0 0 16px -2px rgba(6, 182, 212, 0.25);
+    transform: translateY(-1px);
+}
+
+.chat-plot-zoom-hint {
+    opacity: 0;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    transform: translateY(4px);
+}
+
+.chat-plot-card:hover .chat-plot-zoom-hint {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* =========================================================================
+   Session List Item Styling (ChatGPT / Antigravity Style)
+   ========================================================================= */
+.session-item {
+    transition: all 0.15s ease;
+}
+
+.session-item.active {
+    background-color: rgba(24, 24, 27, 0.95);
+    border-color: rgba(6, 182, 212, 0.5);
+    box-shadow: inset 3px 0 0 0 #06b6d4;
+}
+
+.session-item:hover .session-item-actions {
+    opacity: 1;
+}
+
+.session-item-actions {
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}

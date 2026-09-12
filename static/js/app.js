@@ -16,6 +16,9 @@ let activePlotsList = [];
 let currentAbortController = null;
 let lastAgentGeneratedCode = "";
 let currentSelectedPlotIndex = 0;
+let currentSessionId = null;
+let isSessionSidebarOpen = true;
+let currentLightboxScale = 1.0;
 
 // =========================================================================
 // 1. Lifecycle Initialization & Event Listeners
@@ -25,7 +28,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     initClock();
     initClipboardPasteListener();
     await loadSavedConfig();
-    await loadChatHistory();
+    await loadSessionsList();
     await loadDatasetPreview();
     await loadGeneratedPlotsView();
     await loadMLMetricsView();
@@ -486,22 +489,286 @@ function cancelChatRequest(loadingId, timerInterval) {
 }
 
 // =========================================================================
-// 7. Alur Chat & Real-Time SSE Streaming (4 Agents Pipeline)
+// 7. Multi-Session Chat Management (ChatGPT / Antigravity Style)
 // =========================================================================
-function handleEnterKey(event) {
-    if (event.key === 'Enter' && !currentAbortController) sendChatMessage();
+function escapeHtml(str) {
+    return (str || '')
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+async function loadSessionsList(targetSelectId = null) {
+    try {
+        const res = await fetch('/api/sessions');
+        const data = await res.json();
+        const sessions = data.sessions || [];
+
+        const badge = document.getElementById('sessionCountBadge');
+        if (badge) badge.innerText = `${sessions.length} Sesi Tersimpan`;
+
+        const container = document.getElementById('sessionListContainer');
+        if (!container) return;
+
+        if (sessions.length === 0) {
+            container.innerHTML = '<div class="text-[11px] text-zinc-500 text-center py-4 font-mono">Belum ada sesi. Klik + Sesi Baru.</div>';
+            return;
+        }
+
+        if (!currentSessionId || !sessions.some(s => s.id === currentSessionId)) {
+            currentSessionId = targetSelectId || sessions[0].id;
+        } else if (targetSelectId) {
+            currentSessionId = targetSelectId;
+        }
+
+        let html = '';
+        sessions.forEach(s => {
+            const isActive = s.id === currentSessionId;
+            const activeClass = isActive 
+                ? 'active bg-zinc-900/90 text-cyan-300 border-cyan-500/50 shadow-sm' 
+                : 'text-zinc-300 hover:bg-zinc-900/50 border-transparent';
+
+            html += `
+                <div class="session-item group flex items-center justify-between p-2 rounded-xl border text-xs cursor-pointer ${activeClass}" 
+                     onclick="switchChatSession('${s.id}')" title="${escapeHtml(s.title || '')}">
+                    <div class="flex items-center gap-2 min-w-0 flex-1 pr-1">
+                        <i data-lucide="${isActive ? 'message-circle' : 'message-square'}" class="w-3.5 h-3.5 flex-shrink-0 ${isActive ? 'text-cyan-400' : 'text-zinc-500'}"></i>
+                        <div class="min-w-0 flex-1">
+                            <div class="font-medium truncate text-[12px] leading-tight">${escapeHtml(s.title || 'Sesi Tanpa Judul')}</div>
+                            <div class="text-[10px] text-zinc-500 font-mono mt-0.5">${s.updated_at || ''} • ${s.message_count || 0} pesan</div>
+                        </div>
+                    </div>
+                    <div class="session-item-actions flex items-center gap-1 flex-shrink-0">
+                        <button onclick="promptRenameSession('${s.id}', '${escapeHtml(s.title || '')}', event)" class="p-1 text-zinc-500 hover:text-cyan-400 rounded transition" title="Ubah Nama">
+                            <i data-lucide="edit-3" class="w-3 h-3"></i>
+                        </button>
+                        <button onclick="promptDeleteSession('${s.id}', event)" class="p-1 text-zinc-500 hover:text-red-400 rounded transition" title="Hapus Sesi">
+                            <i data-lucide="trash-2" class="w-3 h-3"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+        lucide.createIcons();
+        updateActiveSessionIndicator(sessions);
+
+        // Muat pesan dari sesi aktif jika chat container belum terisi
+        const chatContainer = document.getElementById('chatContainer');
+        if (chatContainer && chatContainer.children.length <= 1) {
+            await loadSessionMessages(currentSessionId);
+        }
+    } catch (e) {
+        console.error("Gagal memuat daftar sesi:", e);
+    }
+}
+
+function updateActiveSessionIndicator(sessions = []) {
+    const el = document.getElementById('activeSessionIndicator');
+    if (!el) return;
+    const current = sessions.find(s => s.id === currentSessionId);
+    const title = current ? current.title : 'Sesi Aktif';
+    el.innerText = `Sesi: ${title}`;
+    el.title = title;
+}
+
+async function loadSessionMessages(sessionId) {
+    if (!sessionId) return;
+    try {
+        const res = await fetch(`/api/sessions/${sessionId}`);
+        const data = await res.json();
+        const session = data.session;
+
+        const chatContainer = document.getElementById('chatContainer');
+        if (chatContainer) chatContainer.innerHTML = '';
+
+        if (session && session.messages && session.messages.length > 0) {
+            session.messages.forEach(msg => {
+                appendMessageToChat(
+                    msg.role,
+                    msg.content,
+                    msg.plots,
+                    msg.exported_files,
+                    msg.attached_media,
+                    msg.activity_logs,
+                    msg.total_duration
+                );
+            });
+        } else {
+            renderEmptyChatGreeting();
+        }
+    } catch (e) {
+        console.error(`Gagal memuat pesan sesi ${sessionId}:`, e);
+    }
+}
+
+async function createNewChatSession() {
+    try {
+        const res = await fetch('/api/sessions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: "Sesi Baru" })
+        });
+        const data = await res.json();
+        if (data.status === 'success' && data.session) {
+            currentSessionId = data.session.id;
+            renderEmptyChatGreeting();
+            await loadSessionsList(currentSessionId);
+            showToast("✨ Sesi percakapan baru berhasil dibuat!");
+        }
+    } catch (e) {
+        showToast("❌ Gagal membuat sesi baru.");
+    }
+}
+
+async function switchChatSession(sessionId) {
+    if (sessionId === currentSessionId) return;
+    currentSessionId = sessionId;
+    await loadSessionMessages(sessionId);
+    await loadSessionsList(currentSessionId);
+}
+
+function renderEmptyChatGreeting() {
+    const chatContainer = document.getElementById('chatContainer');
+    if (!chatContainer) return;
+    chatContainer.innerHTML = `
+        <div class="flex flex-col items-start space-y-1.5">
+            <div class="flex items-center gap-2 text-xs text-cyan-400 font-semibold ml-1">
+                <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+                AI Multi-Agent System (Enterprise 4-Agent Tier)
+            </div>
+            <div class="glass-card rounded-2xl rounded-tl-sm p-4 text-xs text-zinc-200 leading-relaxed max-w-[90%] shadow-lg border border-zinc-800">
+                <p class="font-semibold text-zinc-100 mb-1">👋 Sesi Percakapan Baru Dimulai!</p>
+                <p class="text-zinc-400 mb-2">Sistem siap menerima instruksi data science Anda:</p>
+                <ul class="list-disc ml-4 space-y-1 text-zinc-300">
+                    <li><strong class="text-amber-400">👑 Supervisor:</strong> Mengatur alur kerja agen otomatis.</li>
+                    <li><strong class="text-cyan-400">📄 Doc Reader:</strong> Membaca PDF/Word & analisis gambar visual.</li>
+                    <li><strong class="text-emerald-400">📊 Data & Stats:</strong> Pembersihan missing value, outlier IQR, & uji hipotesis.</li>
+                    <li><strong class="text-purple-400">🤖 ML Specialist:</strong> Pelatihan Machine Learning & Confusion Matrix.</li>
+                </ul>
+                <p class="mt-2 text-zinc-400">Ketikkan instruksi atau lampirkan berkas di bawah untuk memulai analisis.</p>
+            </div>
+        </div>
+    `;
+    lucide.createIcons();
+}
+
+function promptRenameSession(sessionId, currentTitle, event) {
+    if (event) event.stopPropagation();
+    const modal = document.getElementById('renameSessionModal');
+    const input = document.getElementById('inputRenameSessionTitle');
+    const hiddenId = document.getElementById('targetRenameSessionId');
+    if (modal && input && hiddenId) {
+        hiddenId.value = sessionId;
+        input.value = currentTitle || '';
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        input.focus();
+        lucide.createIcons();
+    }
+}
+
+function closeRenameSessionModal() {
+    const modal = document.getElementById('renameSessionModal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+}
+
+async function confirmRenameSession() {
+    const input = document.getElementById('inputRenameSessionTitle');
+    const hiddenId = document.getElementById('targetRenameSessionId');
+    if (!input || !hiddenId) return;
+
+    const sessionId = hiddenId.value;
+    const newTitle = input.value.trim();
+    if (!newTitle) return;
+
+    try {
+        const res = await fetch(`/api/sessions/${sessionId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: newTitle })
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+            closeRenameSessionModal();
+            await loadSessionsList(currentSessionId);
+            showToast("✏️ Nama sesi berhasil diperbarui!");
+        }
+    } catch (e) {
+        showToast("❌ Gagal mengubah nama sesi.");
+    }
+}
+
+function promptDeleteSession(sessionId, event) {
+    if (event) event.stopPropagation();
+    const modal = document.getElementById('deleteSessionModal');
+    const hiddenId = document.getElementById('targetDeleteSessionId');
+    if (modal && hiddenId) {
+        hiddenId.value = sessionId;
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        lucide.createIcons();
+    }
+}
+
+function closeDeleteSessionModal() {
+    const modal = document.getElementById('deleteSessionModal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+}
+
+async function confirmDeleteSession() {
+    const hiddenId = document.getElementById('targetDeleteSessionId');
+    if (!hiddenId) return;
+    const sessionId = hiddenId.value;
+
+    try {
+        const res = await fetch(`/api/sessions/${sessionId}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.status === 'success') {
+            closeDeleteSessionModal();
+            if (currentSessionId === sessionId) {
+                currentSessionId = null;
+            }
+            await loadSessionsList();
+            if (currentSessionId) {
+                await loadSessionMessages(currentSessionId);
+            }
+            showToast("🗑️ Sesi berhasil dihapus.");
+        }
+    } catch (e) {
+        showToast("❌ Gagal menghapus sesi.");
+    }
+}
+
+function toggleSessionSidebar() {
+    const sidebar = document.getElementById('sessionSidebar');
+    const openBtn = document.getElementById('btnOpenSidebar');
+    if (!sidebar) return;
+
+    isSessionSidebarOpen = !isSessionSidebarOpen;
+    if (isSessionSidebarOpen) {
+        sidebar.classList.remove('w-0', 'overflow-hidden', 'hidden');
+        sidebar.classList.add('w-60');
+        if (openBtn) openBtn.classList.add('hidden');
+    } else {
+        sidebar.classList.remove('w-60');
+        sidebar.classList.add('w-0', 'overflow-hidden', 'hidden');
+        if (openBtn) openBtn.classList.remove('hidden');
+    }
+    lucide.createIcons();
 }
 
 async function loadChatHistory() {
-    try {
-        const res = await fetch('/api/history');
-        const data = await res.json();
-        if (data.history && data.history.length > 0) {
-            data.history.forEach(msg => appendMessageToChat(msg.role, msg.content, msg.plots, msg.exported_files, msg.attached_media, msg.activity_logs, msg.total_duration));
-        }
-    } catch (e) {
-        console.error("Gagal memuat riwayat obrolan:", e);
-    }
+    await loadSessionsList();
 }
 
 function clearChatHistory() {
@@ -511,7 +778,7 @@ function clearChatHistory() {
         modal.classList.add('flex');
         lucide.createIcons();
     } else {
-        if (confirm("Apakah Anda yakin ingin mereset seluruh percakapan dan menghentikan proses yang sedang berjalan?")) {
+        if (confirm("Apakah Anda yakin ingin mengosongkan percakapan pada sesi ini?")) {
             executeConfirmedReset();
         }
     }
@@ -528,7 +795,6 @@ function closeConfirmResetModal() {
 async function executeConfirmedReset() {
     closeConfirmResetModal();
 
-    // 1. Hentikan request/proses yang sedang berjalan secara paksa
     if (currentAbortController) {
         try {
             currentAbortController.abort();
@@ -536,33 +802,174 @@ async function executeConfirmedReset() {
         currentAbortController = null;
     }
 
-    // 2. Kembalikan tombol send ke status normal
     setButtonStateToSend();
 
-    // 3. Kosongkan tampilan chat seketika
     const chatContainer = document.getElementById('chatContainer');
     if (chatContainer) {
         chatContainer.innerHTML = '';
     }
 
-    // 4. Bersihkan media yang ter-stage dan input teks
     stagedMediaFiles = [];
     renderStagedMediaBar();
     const queryInput = document.getElementById('userQueryInput');
     if (queryInput) queryInput.value = '';
 
-    // 5. Panggil API backend untuk menghapus chat_history.json & plot sementara
     try {
-        await fetch('/api/history/clear', { method: 'POST' });
-        showToast("🗑️ Sesi dan proses aktif berhasil dihentikan & direset bersih.");
+        if (currentSessionId) {
+            await fetch(`/api/sessions/${currentSessionId}/clear`, { method: 'POST' });
+        } else {
+            await fetch('/api/history/clear', { method: 'POST' });
+        }
+        showToast("🗑️ Percakapan sesi ini berhasil dikosongkan.");
+        renderEmptyChatGreeting();
+        await loadSessionsList(currentSessionId);
     } catch (e) {
         console.error("Error clear history:", e);
     }
+}
 
-    // 6. Muat ulang sesi bersih
-    setTimeout(() => {
-        location.reload();
-    }, 400);
+// =========================================================================
+// 8. Code Block Header & Copy Button Enhancement
+// =========================================================================
+function enhanceCodeBlocks(container) {
+    if (!container) return;
+    const preElements = container.querySelectorAll('pre:not([data-enhanced="true"])');
+    preElements.forEach(pre => {
+        pre.setAttribute('data-enhanced', 'true');
+        const code = pre.querySelector('code');
+        if (!code) return;
+
+        let lang = 'CODE';
+        const classNames = code.className || '';
+        const langMatch = classNames.match(/language-([a-zA-Z0-9_\-]+)/);
+        if (langMatch) {
+            lang = langMatch[1].toUpperCase();
+        } else {
+            const rawText = code.innerText || '';
+            if (rawText.includes('import ') || rawText.includes('def ') || rawText.includes('plt.')) {
+                lang = 'PYTHON';
+            } else if (rawText.trim().startsWith('{') || rawText.trim().startsWith('[')) {
+                lang = 'JSON';
+            } else if (rawText.includes('SELECT ') || rawText.includes('FROM ')) {
+                lang = 'SQL';
+            }
+        }
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'code-block-wrapper';
+
+        const header = document.createElement('div');
+        header.className = 'code-block-header';
+        header.innerHTML = `
+            <span class="code-block-lang flex items-center gap-1.5">
+                <i data-lucide="terminal" class="w-3.5 h-3.5 text-cyan-400"></i>
+                ${lang}
+            </span>
+            <button type="button" class="code-copy-btn" title="Salin seluruh kode">
+                <i data-lucide="copy" class="w-3 h-3 text-zinc-400"></i>
+                <span class="copy-text">Salin Kode</span>
+            </button>
+        `;
+
+        const copyBtn = header.querySelector('.code-copy-btn');
+        copyBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const textToCopy = code.innerText || code.textContent || '';
+            if (!textToCopy.trim()) return;
+
+            navigator.clipboard.writeText(textToCopy.trim()).then(() => {
+                copyBtn.classList.add('copied');
+                copyBtn.innerHTML = `
+                    <i data-lucide="check" class="w-3 h-3 text-emerald-400"></i>
+                    <span class="copy-text text-emerald-300 font-semibold">Tersalin!</span>
+                `;
+                lucide.createIcons();
+                showToast(`📋 Kode ${lang} berhasil disalin!`);
+
+                setTimeout(() => {
+                    copyBtn.classList.remove('copied');
+                    copyBtn.innerHTML = `
+                        <i data-lucide="copy" class="w-3 h-3 text-zinc-400"></i>
+                        <span class="copy-text">Salin Kode</span>
+                    `;
+                    lucide.createIcons();
+                }, 2000);
+            }).catch(() => {
+                fallbackCopyText(textToCopy.trim(), copyBtn);
+            });
+        });
+
+        pre.parentNode.insertBefore(wrapper, pre);
+        wrapper.appendChild(header);
+        wrapper.appendChild(pre);
+    });
+    lucide.createIcons();
+}
+
+// =========================================================================
+// 9. Plot Lightbox Zoom (Interactive Fullscreen Click-to-Enlarge)
+// =========================================================================
+function openPlotLightbox(url, title) {
+    const modal = document.getElementById('plotLightboxModal');
+    const img = document.getElementById('lightboxPlotImg');
+    const titleEl = document.getElementById('lightboxPlotTitle');
+    const downloadBtn = document.getElementById('lightboxDownloadBtn');
+    const badge = document.getElementById('lightboxZoomBadge');
+
+    if (!modal || !img) return;
+
+    currentLightboxScale = 1.0;
+    img.src = url;
+    img.style.transform = 'scale(1)';
+
+    if (titleEl) titleEl.innerText = title || 'Plot Preview';
+    if (downloadBtn) {
+        downloadBtn.href = url;
+        downloadBtn.download = title || 'plot.png';
+    }
+    if (badge) badge.innerText = '100%';
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.addEventListener('keydown', handleLightboxKeyDown);
+    lucide.createIcons();
+}
+
+function closePlotLightbox() {
+    const modal = document.getElementById('plotLightboxModal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+    document.removeEventListener('keydown', handleLightboxKeyDown);
+}
+
+function zoomLightboxImage(delta) {
+    currentLightboxScale = Math.max(0.4, Math.min(3.5, currentLightboxScale + delta));
+    const img = document.getElementById('lightboxPlotImg');
+    const badge = document.getElementById('lightboxZoomBadge');
+    if (img) img.style.transform = `scale(${currentLightboxScale.toFixed(2)})`;
+    if (badge) badge.innerText = `${Math.round(currentLightboxScale * 100)}%`;
+}
+
+function resetLightboxZoom() {
+    currentLightboxScale = 1.0;
+    const img = document.getElementById('lightboxPlotImg');
+    const badge = document.getElementById('lightboxZoomBadge');
+    if (img) img.style.transform = 'scale(1)';
+    if (badge) badge.innerText = '100%';
+}
+
+function handleLightboxKeyDown(e) {
+    if (e.key === 'Escape') {
+        closePlotLightbox();
+    } else if (e.key === '+' || e.key === '=') {
+        zoomLightboxImage(0.2);
+    } else if (e.key === '-' || e.key === '_') {
+        zoomLightboxImage(-0.2);
+    } else if (e.key === '0') {
+        resetLightboxZoom();
+    }
 }
 
 async function sendChatMessage() {
@@ -662,6 +1069,7 @@ async function sendChatMessage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 query: query || "Tolong analisis dataset/dokumen yang dilampirkan.",
+                session_id: currentSessionId,
                 provider: provider,
                 api_key: apiKey,
                 local_base_url: localBaseUrl,
@@ -715,6 +1123,10 @@ async function sendChatMessage() {
                             const loader = document.getElementById(loadingId);
                             if (loader) loader.remove();
 
+                            if (event.session_id) {
+                                currentSessionId = event.session_id;
+                            }
+
                             // Ekstrak kode Python ke sandbox
                             if (event.response.includes("```python")) {
                                 const match = event.response.match(/```python([\s\S]*?)```/);
@@ -731,6 +1143,7 @@ async function sendChatMessage() {
                             loadGeneratedPlotsView();
                             loadMLMetricsView();
                             loadSandboxFilesDropdown();
+                            await loadSessionsList(currentSessionId);
                             showToast(`✅ Alur 4 Agen selesai dalam ${event.total_duration || 0}s!`);
                         } else if (event.type === 'error') {
                             clearInterval(timerInterval);
@@ -807,12 +1220,23 @@ function appendMessageToChat(role, content, plots = [], exportedFiles = [], atta
             plots.forEach(plot => {
                 const fname = plot.split(/[\/\\]/).pop();
                 plotHtml += `
-                    <div class="mt-2.5 p-2 rounded-xl bg-zinc-950/80 border border-zinc-800">
+                    <div class="mt-2.5 p-2.5 rounded-xl bg-zinc-950/80 border border-zinc-800 chat-plot-card group relative select-none" onclick="openPlotLightbox('/api/plots/${fname}', '${fname}')">
                         <div class="flex items-center justify-between pb-1.5 text-xs text-zinc-400 px-1">
-                            <span class="font-semibold text-cyan-400 flex items-center gap-1"><i data-lucide="image" class="w-3.5 h-3.5"></i> Plot Visual: ${fname}</span>
-                            <button onclick="switchTab('tab-chart')" class="text-xs text-cyan-400 hover:underline">Buka di Tab Charts ➔</button>
+                            <span class="font-semibold text-cyan-400 flex items-center gap-1.5">
+                                <i data-lucide="bar-chart-2" class="w-3.5 h-3.5"></i> Plot Visual: ${fname}
+                            </span>
+                            <span class="chat-plot-zoom-hint text-[10px] text-cyan-300 font-semibold bg-cyan-500/10 border border-cyan-500/30 px-2 py-0.5 rounded-md flex items-center gap-1">
+                                <i data-lucide="zoom-in" class="w-3 h-3"></i> Klik untuk memperbesar
+                            </span>
                         </div>
-                        <img src="/api/plots/${fname}" class="rounded-lg border border-zinc-800 max-h-72 w-full object-contain mx-auto bg-white/5" />
+                        <div class="relative overflow-hidden rounded-lg bg-white/5 border border-zinc-800/80 flex items-center justify-center">
+                            <img src="/api/plots/${fname}" alt="${fname}" class="max-h-72 w-full object-contain mx-auto transition-transform duration-200 group-hover:scale-[1.01]" />
+                            <div class="absolute inset-0 bg-cyan-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none flex items-center justify-center">
+                                <span class="p-2 rounded-full bg-zinc-900/90 text-cyan-400 border border-cyan-500/40 shadow-xl">
+                                    <i data-lucide="maximize-2" class="w-5 h-5"></i>
+                                </span>
+                            </div>
+                        </div>
                     </div>
                 `;
             });
@@ -896,6 +1320,7 @@ function appendMessageToChat(role, content, plots = [], exportedFiles = [], atta
     chatContainer.scrollTop = chatContainer.scrollHeight;
     lucide.createIcons();
     applyKaTeX(wrapper);
+    enhanceCodeBlocks(wrapper);
 }
 
 function applyKaTeX(element) {

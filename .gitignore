@@ -9,6 +9,7 @@ __pycache__/
 .env.local
 .config.json
 chat_history.json
+chat_sessions/
 
 # Local Uploads & Temporary Directories
 temp_uploads/

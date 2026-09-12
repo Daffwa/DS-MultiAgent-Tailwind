@@ -57,7 +57,14 @@ from utils.persistence import (
     save_config,
     load_chat_history,
     save_chat_history,
-    clear_all_history
+    clear_all_history,
+    list_all_sessions,
+    create_new_session,
+    get_session_details,
+    save_session_history,
+    rename_session,
+    delete_session,
+    clear_session_messages
 )
 
 app = FastAPI(title="Data Science Multi-Agent Solver API", version="3.0.0")
@@ -74,8 +81,17 @@ app.add_middleware(
 # ---------------------------------------------------------
 # Request Schemas
 # ---------------------------------------------------------
+class SessionCreateRequest(BaseModel):
+    title: Optional[str] = None
+
+
+class SessionRenameRequest(BaseModel):
+    title: str
+
+
 class ChatRequest(BaseModel):
     query: str
+    session_id: Optional[str] = None
     api_key: Optional[str] = None
     model_name: Optional[str] = None
     provider: Optional[str] = None
@@ -180,6 +196,50 @@ def get_local_models(base_url: Optional[str] = None):
         "base_url": target_url,
         "models": models
     }
+
+
+# ---------------------------------------------------------
+# API Endpoints: Multi-Session Chat Management (ChatGPT / Antigravity Style)
+# ---------------------------------------------------------
+@app.get("/api/sessions")
+def get_sessions_list():
+    sessions = list_all_sessions()
+    return {"sessions": sessions}
+
+
+@app.post("/api/sessions")
+def create_session_endpoint(req: Optional[SessionCreateRequest] = None):
+    title = req.title if req else None
+    session = create_new_session(title)
+    return {"status": "success", "session": session}
+
+
+@app.get("/api/sessions/{session_id}")
+def get_session_endpoint(session_id: str):
+    session = get_session_details(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Sesi percakapan tidak ditemukan.")
+    return {"session": session}
+
+
+@app.patch("/api/sessions/{session_id}")
+def rename_session_endpoint(session_id: str, req: SessionRenameRequest):
+    success = rename_session(session_id, req.title)
+    if not success:
+        raise HTTPException(status_code=400, detail="Gagal mengubah nama sesi.")
+    return {"status": "success", "message": "Judul sesi berhasil diperbarui."}
+
+
+@app.delete("/api/sessions/{session_id}")
+def delete_session_endpoint(session_id: str):
+    success = delete_session(session_id)
+    return {"status": "success", "message": "Sesi berhasil dihapus."}
+
+
+@app.post("/api/sessions/{session_id}/clear")
+def clear_session_endpoint(session_id: str):
+    clear_session_messages(session_id)
+    return {"status": "success", "message": "Riwayat sesi berhasil dikosongkan."}
 
 
 @app.get("/api/history")
@@ -769,13 +829,22 @@ async def handle_chat_stream(req: ChatRequest):
     for f in glob.glob(os.path.join(TEMP_UPLOAD_DIR, "*")):
         uploaded_files_map[os.path.basename(f)] = f
 
+    # Tentukan ID sesi aktif
+    target_session_id = req.session_id
+    if not target_session_id:
+        sessions = list_all_sessions()
+        target_session_id = sessions[0]["id"] if sessions else create_new_session()["id"]
+
+    session_data = get_session_details(target_session_id)
+    history = session_data.get("messages", []) if session_data else []
+
     user_entry = {
         "role": "user",
         "content": req.query,
         "attached_media": req.attached_media
     }
-    history = load_chat_history()
     history.append(user_entry)
+    save_session_history(target_session_id, history)
 
     try:
         agent_graph = build_multiagent_graph(
@@ -868,9 +937,9 @@ async def handle_chat_stream(req: ChatRequest):
                 "total_duration": total_duration
             }
             history.append(ai_entry)
-            save_chat_history(history)
+            save_session_history(target_session_id, history)
 
-            yield f"data: {json.dumps({'type': 'complete', 'status': 'success', 'response': formatted_response, 'plots': new_plots, 'exported_files': new_files, 'activity_logs': logs_list, 'total_duration': total_duration})}\n\n"
+            yield f"data: {json.dumps({'type': 'complete', 'status': 'success', 'session_id': target_session_id, 'response': formatted_response, 'plots': new_plots, 'exported_files': new_files, 'activity_logs': logs_list, 'total_duration': total_duration})}\n\n"
 
         except Exception as e:
             yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
@@ -879,9 +948,13 @@ async def handle_chat_stream(req: ChatRequest):
 
 
 @app.post("/api/report/generate")
-def create_report_endpoint():
+def create_report_endpoint(session_id: Optional[str] = None):
     cfg = load_config()
-    history = load_chat_history()
+    if session_id:
+        session_data = get_session_details(session_id)
+        history = session_data.get("messages", []) if session_data else load_chat_history()
+    else:
+        history = load_chat_history()
     
     uploaded_files_map = {}
     for f in glob.glob(os.path.join(TEMP_UPLOAD_DIR, "*")):

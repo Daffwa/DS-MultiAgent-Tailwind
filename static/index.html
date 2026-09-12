@@ -76,13 +76,18 @@
                 <span>Upload Dataset / Soal</span>
             </button>
 
+            <!-- Toggle Session Sidebar Button -->
+            <button onclick="toggleSessionSidebar()" class="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-cyan-400 hover:bg-zinc-800 transition" title="Riwayat Sesi Chat (ChatGPT / Antigravity Style)">
+                <i data-lucide="history" class="w-4 h-4"></i>
+            </button>
+
             <!-- Settings Modal Button -->
             <button onclick="openSettingsModal()" class="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition" title="Konfigurasi API Key & Model">
                 <i data-lucide="settings" class="w-4 h-4"></i>
             </button>
             
             <!-- Clear History Button -->
-            <button onclick="clearChatHistory()" class="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-red-400 hover:bg-zinc-800 transition" title="Reset Percakapan">
+            <button onclick="clearChatHistory()" class="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-red-400 hover:bg-zinc-800 transition" title="Reset Sesi Ini">
                 <i data-lucide="trash-2" class="w-4 h-4"></i>
             </button>
         </div>
@@ -92,88 +97,127 @@
     <div class="flex-1 flex overflow-hidden">
         
         <!-- ======================================================================= -->
-        <!-- LEFT PANE: MULTI-AGENT CHAT & ACTIVITY TRACKER (45% Width) -->
+        <!-- LEFT PANE: MULTI-AGENT CHAT & ACTIVITY TRACKER (48% Width) -->
         <!-- ======================================================================= -->
-        <aside class="w-[45%] border-r border-zinc-800 flex flex-col bg-zinc-950/40 relative">
+        <aside class="w-[48%] border-r border-zinc-800 flex bg-zinc-950/40 relative overflow-hidden">
             
-            <!-- 4-Agent Activity Tracker Bar -->
-            <div class="p-3 border-b border-zinc-800/80 bg-zinc-900/30 flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                    <span class="text-xs font-semibold text-zinc-400 flex items-center gap-1">
-                        <i data-lucide="cpu" class="w-3.5 h-3.5 text-cyan-400"></i> Agents:
-                    </span>
-                    <div class="flex items-center gap-1.5 flex-wrap">
-                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-500/10 text-amber-300 border border-amber-500/30">
-                            👑 Supervisor
-                        </span>
-                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">
-                            📄 Doc Reader
-                        </span>
-                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-emerald-500/10 text-emerald-300 border border-emerald-500/30">
-                            📊 Data & Stats
-                        </span>
-                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-purple-500/10 text-purple-300 border border-purple-500/30">
-                            🤖 ML Specialist
-                        </span>
+            <!-- ChatGPT / Antigravity Style Session Sidebar (Collapsible) -->
+            <div id="sessionSidebar" class="w-60 border-r border-zinc-800/80 bg-zinc-950 flex flex-col flex-shrink-0 transition-all duration-300 z-10">
+                <!-- Sidebar Header -->
+                <div class="p-3 border-b border-zinc-800/80 flex items-center justify-between bg-zinc-900/40">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="messages-square" class="w-4 h-4 text-cyan-400"></i>
+                        <span class="text-xs font-bold text-zinc-200">Sesi Chat</span>
                     </div>
-                </div>
-                <div class="text-[11px] font-mono text-zinc-500" id="liveClock">--:--:-- WIB</div>
-            </div>
-
-            <!-- Chat Scroll Area -->
-            <div class="flex-1 overflow-y-auto p-4 space-y-4" id="chatContainer">
-                
-                <!-- Welcome Assistant Greeting -->
-                <div class="flex flex-col items-start space-y-1.5">
-                    <div class="flex items-center gap-2 text-xs text-cyan-400 font-semibold ml-1">
-                        <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
-                        AI Multi-Agent System (Enterprise 4-Agent Tier)
-                    </div>
-                    <div class="glass-card rounded-2xl rounded-tl-sm p-4 text-xs text-zinc-200 leading-relaxed max-w-[90%] shadow-lg border border-zinc-800">
-                        <p class="font-semibold text-zinc-100 mb-1">👋 Selamat Datang di Dashboard Data Science Multi-Agent Solver!</p>
-                        <p class="text-zinc-400 mb-2">Sistem ini mengintegrasikan 4 Agen Spesialis:</p>
-                        <ul class="list-disc ml-4 space-y-1 text-zinc-300">
-                            <li><strong class="text-amber-400">👑 Supervisor:</strong> Manajer alur kerja cerdas.</li>
-                            <li><strong class="text-cyan-400">📄 Doc Reader:</strong> Pembaca soal PDF/Word & Multimodal Vision.</li>
-                            <li><strong class="text-emerald-400">📊 Data & Stats:</strong> Pembersihan data, deteksi outlier, & uji hipotesis formal.</li>
-                            <li><strong class="text-purple-400">🤖 ML Specialist:</strong> Pelatihan model prediktif & Confusion Matrix.</li>
-                        </ul>
-                        <p class="mt-2 text-zinc-400">Unggah file dataset atau ketikkan instruksi analisis Anda di bawah.</p>
-                    </div>
-                </div>
-
-            </div>
-
-            <!-- Staged Clipboard / File Media Bar -->
-            <div id="stagedMediaBar" class="hidden px-4 py-2 border-t border-zinc-800/80 bg-zinc-900/60 backdrop-blur-md"></div>
-
-            <!-- Chat Input Area -->
-            <div class="p-3 border-t border-zinc-800 bg-zinc-950/80 backdrop-blur-md">
-                <div class="relative flex items-center bg-zinc-900 border border-zinc-800 rounded-xl p-1.5 focus-within:border-cyan-500 focus-within:ring-1 focus-within:ring-cyan-500 transition">
-                    
-                    <!-- Media Attachment Button -->
-                    <label for="mediaFileInput" class="p-2 rounded-lg text-zinc-400 hover:text-cyan-400 hover:bg-zinc-800 cursor-pointer transition" title="Lampirkan Gambar/File">
-                        <i data-lucide="paperclip" class="w-4 h-4"></i>
-                        <input type="file" id="mediaFileInput" multiple onchange="handleMediaAttachment(event)" class="hidden" />
-                    </label>
-
-                    <!-- Text Input Field -->
-                    <input 
-                        type="text" 
-                        id="userQueryInput" 
-                        onkeydown="handleEnterKey(event)"
-                        placeholder="Ketik instruksi data science Anda (contoh: 'Latih model prediksi' atau 'Uji hipotesis')..." 
-                        class="flex-1 bg-transparent px-3 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none"
-                    />
-
-                    <!-- Send / Stop Button -->
-                    <button onclick="sendChatMessage()" id="btnSendChat" class="p-1.5 ml-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-zinc-950 font-bold transition shadow-md shadow-cyan-500/20">
-                        <i data-lucide="arrow-up" class="w-4 h-4"></i>
+                    <button onclick="toggleSessionSidebar()" class="p-1 rounded-md text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition" title="Sembunyikan Sidebar">
+                        <i data-lucide="panel-left-close" class="w-3.5 h-3.5"></i>
                     </button>
                 </div>
-                <div class="flex items-center justify-between mt-2 px-1 text-[11px] text-zinc-500">
-                    <span>💡 Mendukung Excel, CSV, Word (.docx), PDF, Gambar (Ctrl+V).</span>
-                    <span>FastAPI + LangGraph Stack</span>
+
+                <!-- New Chat Button -->
+                <div class="p-2.5">
+                    <button onclick="createNewChatSession()" class="w-full py-2 px-3 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-zinc-950 font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-md shadow-cyan-500/10 transition">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                        <span>+ Sesi Baru</span>
+                    </button>
+                </div>
+
+                <!-- Sessions Scroll List -->
+                <div class="flex-1 overflow-y-auto px-2 py-1 space-y-1" id="sessionListContainer">
+                    <div class="text-[11px] text-zinc-500 text-center py-4 font-mono">Memuat riwayat sesi...</div>
+                </div>
+
+                <!-- Sidebar Footer -->
+                <div class="p-2.5 border-t border-zinc-800/80 text-[10px] text-zinc-500 flex items-center justify-between font-mono bg-zinc-900/30">
+                    <span id="sessionCountBadge">1 Sesi Tersimpan</span>
+                    <span class="text-cyan-400/80">Lokal JSON</span>
+                </div>
+            </div>
+
+            <!-- Chat & Stream Workspace (Flex-1) -->
+            <div class="flex-1 flex flex-col min-w-0 h-full relative">
+                <!-- 4-Agent Activity Tracker Bar -->
+                <div class="p-3 border-b border-zinc-800/80 bg-zinc-900/30 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <button id="btnOpenSidebar" onclick="toggleSessionSidebar()" class="hidden p-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-cyan-400 hover:bg-zinc-800 transition mr-1" title="Buka Riwayat Sesi">
+                            <i data-lucide="panel-left-open" class="w-3.5 h-3.5"></i>
+                        </button>
+                        <span class="text-xs font-semibold text-zinc-400 flex items-center gap-1">
+                            <i data-lucide="cpu" class="w-3.5 h-3.5 text-cyan-400"></i> Agents:
+                        </span>
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                                👑 Supervisor
+                            </span>
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">
+                                📄 Doc Reader
+                            </span>
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-emerald-500/10 text-emerald-300 border border-emerald-500/30">
+                                📊 Data & Stats
+                            </span>
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-purple-500/10 text-purple-300 border border-purple-500/30">
+                                🤖 ML Specialist
+                            </span>
+                        </div>
+                    </div>
+                    <div class="text-[11px] font-mono text-zinc-500" id="liveClock">--:--:-- WIB</div>
+                </div>
+
+                <!-- Chat Scroll Area -->
+                <div class="flex-1 overflow-y-auto p-4 space-y-4" id="chatContainer">
+                    
+                    <!-- Welcome Assistant Greeting -->
+                    <div class="flex flex-col items-start space-y-1.5">
+                        <div class="flex items-center gap-2 text-xs text-cyan-400 font-semibold ml-1">
+                            <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+                            AI Multi-Agent System (Enterprise 4-Agent Tier)
+                        </div>
+                        <div class="glass-card rounded-2xl rounded-tl-sm p-4 text-xs text-zinc-200 leading-relaxed max-w-[90%] shadow-lg border border-zinc-800">
+                            <p class="font-semibold text-zinc-100 mb-1">👋 Selamat Datang di Dashboard Data Science Multi-Agent Solver!</p>
+                            <p class="text-zinc-400 mb-2">Sistem ini mengintegrasikan 4 Agen Spesialis:</p>
+                            <ul class="list-disc ml-4 space-y-1 text-zinc-300">
+                                <li><strong class="text-amber-400">👑 Supervisor:</strong> Manajer alur kerja cerdas.</li>
+                                <li><strong class="text-cyan-400">📄 Doc Reader:</strong> Pembaca soal PDF/Word & Multimodal Vision.</li>
+                                <li><strong class="text-emerald-400">📊 Data & Stats:</strong> Pembersihan data, deteksi outlier, & uji hipotesis formal.</li>
+                                <li><strong class="text-purple-400">🤖 ML Specialist:</strong> Pelatihan model prediktif & Confusion Matrix.</li>
+                            </ul>
+                            <p class="mt-2 text-zinc-400">Unggah file dataset atau ketikkan instruksi analisis Anda di bawah.</p>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Staged Clipboard / File Media Bar -->
+                <div id="stagedMediaBar" class="hidden px-4 py-2 border-t border-zinc-800/80 bg-zinc-900/60 backdrop-blur-md"></div>
+
+                <!-- Chat Input Area -->
+                <div class="p-3 border-t border-zinc-800 bg-zinc-950/80 backdrop-blur-md">
+                    <div class="relative flex items-center bg-zinc-900 border border-zinc-800 rounded-xl p-1.5 focus-within:border-cyan-500 focus-within:ring-1 focus-within:ring-cyan-500 transition">
+                        
+                        <!-- Media Attachment Button -->
+                        <label for="mediaFileInput" class="p-2 rounded-lg text-zinc-400 hover:text-cyan-400 hover:bg-zinc-800 cursor-pointer transition" title="Lampirkan Gambar/File">
+                            <i data-lucide="paperclip" class="w-4 h-4"></i>
+                            <input type="file" id="mediaFileInput" multiple onchange="handleMediaAttachment(event)" class="hidden" />
+                        </label>
+
+                        <!-- Text Input Field -->
+                        <input 
+                            type="text" 
+                            id="userQueryInput" 
+                            onkeydown="handleEnterKey(event)"
+                            placeholder="Ketik instruksi data science Anda (contoh: 'Latih model prediksi' atau 'Uji hipotesis')..." 
+                            class="flex-1 bg-transparent px-3 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none"
+                        />
+
+                        <!-- Send / Stop Button -->
+                        <button onclick="sendChatMessage()" id="btnSendChat" class="p-1.5 ml-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-zinc-950 font-bold transition shadow-md shadow-cyan-500/20">
+                            <i data-lucide="arrow-up" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                    <div class="flex items-center justify-between mt-2 px-1 text-[11px] text-zinc-500">
+                        <span>💡 Mendukung Excel, CSV, Word (.docx), PDF, Gambar (Ctrl+V).</span>
+                        <span id="activeSessionIndicator" class="font-mono text-cyan-400 font-medium">Sesi: Memuat...</span>
+                    </div>
                 </div>
             </div>
 
@@ -727,6 +771,88 @@ from scipy import stats
                 </button>
                 <button onclick="executeConfirmedReset()" id="btnConfirmResetAction" class="px-4 py-2 bg-red-600 hover:bg-red-500 text-xs font-bold rounded-lg text-white transition shadow-md shadow-red-600/20 flex items-center gap-1.5">
                     <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Ya, Hentikan & Reset
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Plot Lightbox Zoom Modal (Click-to-Enlarge Interactive Fullscreen) -->
+    <div id="plotLightboxModal" class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 hidden items-center justify-center p-4">
+        <div class="relative max-w-5xl w-full h-[90vh] bg-zinc-950 border border-zinc-800 rounded-2xl flex flex-col overflow-hidden shadow-2xl">
+            <!-- Top Toolbar -->
+            <div class="h-14 px-5 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/80 flex-shrink-0">
+                <div class="flex items-center gap-2 text-xs text-zinc-200">
+                    <i data-lucide="image" class="w-4 h-4 text-cyan-400"></i>
+                    <span id="lightboxPlotTitle" class="font-semibold font-mono text-zinc-100 max-w-md truncate">Plot Preview</span>
+                    <span id="lightboxZoomBadge" class="text-[10px] text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 px-2 py-0.5 rounded font-mono">100%</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="zoomLightboxImage(0.2)" class="p-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition" title="Perbesar (Zoom In)">
+                        <i data-lucide="zoom-in" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="zoomLightboxImage(-0.2)" class="p-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition" title="Perkecil (Zoom Out)">
+                        <i data-lucide="zoom-out" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="resetLightboxZoom()" class="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white text-xs font-mono transition" title="Reset Ukuran Asli">
+                        1:1
+                    </button>
+                    <a id="lightboxDownloadBtn" href="#" download class="px-3 py-1.5 bg-cyan-500 hover:bg-cyan-400 text-zinc-950 font-bold rounded-lg text-xs flex items-center gap-1.5 transition shadow-sm">
+                        <i data-lucide="download" class="w-3.5 h-3.5"></i> Unduh Gambar
+                    </a>
+                    <button onclick="closePlotLightbox()" class="p-2 rounded-lg bg-zinc-800 hover:bg-red-500/20 text-zinc-400 hover:text-red-400 transition ml-2" title="Tutup (ESC)">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+            <!-- Image Viewport Area -->
+            <div class="flex-1 overflow-auto flex items-center justify-center p-6 bg-zinc-950 select-none cursor-grab active:cursor-grabbing" id="lightboxViewport" onclick="if(event.target===this) closePlotLightbox()">
+                <img id="lightboxPlotImg" src="" alt="Plot Besar" class="max-h-full max-w-full object-contain rounded-lg shadow-2xl transition-transform duration-150" style="transform: scale(1);" />
+            </div>
+        </div>
+    </div>
+
+    <!-- Rename Session Modal -->
+    <div id="renameSessionModal" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div class="flex items-center gap-2">
+                <i data-lucide="edit-3" class="w-4 h-4 text-cyan-400"></i>
+                <h3 class="text-sm font-bold text-zinc-100">Ubah Nama Sesi</h3>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-zinc-400 mb-1.5">Judul Sesi Baru:</label>
+                <input type="text" id="inputRenameSessionTitle" class="w-full bg-zinc-950 border border-zinc-700 rounded-lg p-2.5 text-xs text-zinc-100 focus:outline-none focus:border-cyan-500 font-medium" />
+                <input type="hidden" id="targetRenameSessionId" />
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+                <button onclick="closeRenameSessionModal()" class="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold rounded-lg text-zinc-300 transition">
+                    Batal
+                </button>
+                <button onclick="confirmRenameSession()" class="px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-xs font-bold rounded-lg text-zinc-950 transition">
+                    Simpan
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Session Modal -->
+    <div id="deleteSessionModal" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 flex-shrink-0">
+                    <i data-lucide="trash-2" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h3 class="text-sm font-bold text-zinc-100">Hapus Sesi Percakapan?</h3>
+                    <p class="text-[11px] text-zinc-400 mt-0.5">Riwayat pesan dalam sesi ini akan dihapus permanen.</p>
+                </div>
+            </div>
+            <input type="hidden" id="targetDeleteSessionId" />
+            <div class="flex justify-end gap-2 pt-2">
+                <button onclick="closeDeleteSessionModal()" class="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold rounded-lg text-zinc-300 transition">
+                    Batal
+                </button>
+                <button onclick="confirmDeleteSession()" class="px-4 py-2 bg-red-600 hover:bg-red-500 text-xs font-bold rounded-lg text-white transition shadow-md shadow-red-600/20">
+                    Ya, Hapus Sesi
                 </button>
             </div>
         </div>
